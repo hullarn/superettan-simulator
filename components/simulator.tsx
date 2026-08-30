@@ -80,7 +80,7 @@ function possiblePositions(table: TeamStanding[], fixtures: Fixture[], results: 
 
 function zoneBorderClass(position: number) {
   if (position <= 2) return 'border-l-4 border-l-emerald-500';
-  if (position <= 6) return 'border-l-4 border-l-sky-500';
+  if (position <= 4) return 'border-l-4 border-l-sky-500';
   if (position <= 12) return 'border-l-4 border-l-transparent';
   if (position <= 14) return 'border-l-4 border-l-amber-500';
   return 'border-l-4 border-l-rose-500';
@@ -230,7 +230,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                   {table.map((team) => {
                     const focused = Boolean(focusTeam) && team.name === focusTeam;
                     const flashing = flashState.teams.has(team.name);
-                    return <tr key={team.id} className={cn('transition-colors hover:bg-muted/35', focused && 'bg-primary/[0.08] font-semibold', flashing && (flashState.version % 2 === 0 ? 'table-row-flash-a' : 'table-row-flash-b'), team.position === 3 && 'border-t-2 border-t-emerald-500/70', team.position === 7 && 'border-t-2 border-t-sky-500/70', team.position === 13 && 'border-t-2 border-t-amber-500/70', team.position === 15 && 'border-t-2 border-t-rose-500/70')}>
+                    return <tr key={team.id} className={cn('transition-colors hover:bg-muted/35', focused && 'bg-primary/[0.08] font-semibold', flashing && (flashState.version % 2 === 0 ? 'table-row-flash-a' : 'table-row-flash-b'), team.position === 3 && 'border-t-2 border-t-emerald-500/70', team.position === 5 && 'border-t-2 border-t-sky-500/70', team.position === 13 && 'border-t-2 border-t-amber-500/70', team.position === 15 && 'border-t-2 border-t-rose-500/70')}>
                       <td className={cn('px-2 py-1.5 text-center font-bold', zoneBorderClass(team.position))}>{team.position}</td><td className="max-w-44 px-2 py-1.5"><span className={cn('flex min-w-0 items-center gap-1.5 font-semibold', focused && 'text-primary')}><span className="truncate">{team.name}</span>{team.worst <= 2 && <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-label="Topp 2 säkrat" />}</span></td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.played}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.won}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.drawn}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.lost}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.goalsFor}–{team.goalsAgainst}</td><td className="px-2 py-1.5 text-center">{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}</td><td className="px-2 py-1.5 text-center text-sm font-black">{team.points}</td><td className="bg-primary/[0.025] px-2 py-1.5 text-center font-bold tabular-nums">{isFinalTable ? team.position : `${team.best}–${team.worst}`}</td>
                     </tr>;
                   })}
