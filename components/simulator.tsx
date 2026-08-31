@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, CircleHelp, RotateCcw, Target } from 'lucide-react';
+import { CheckCircle2, CircleHelp, LoaderCircle, RotateCcw, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import type { PlacementRanges } from '@/lib/exact-placement';
 import type { CompetitionData, Fixture, TeamStanding } from '@/lib/superettan';
 
 type MatchResult = { home: number; away: number };
@@ -18,7 +19,7 @@ function outcome(result?: MatchResult) {
 }
 
 function scoreFor(value: '1' | 'X' | '2'): MatchResult {
-  return value === '1' ? { home: 1, away: 0 } : value === '2' ? { home: 0, away: 1 } : { home: 1, away: 1 };
+  return value === '1' ? { home: 1, away: 0 } : value === '2' ? { home: 0, away: 1 } : { home: 0, away: 0 };
 }
 
 function cloneTeam(team: TeamStanding): TeamStanding {
@@ -86,18 +87,32 @@ function zoneBorderClass(position: number) {
   return 'border-l-4 border-l-rose-500';
 }
 
+function placementLabel(team: SimTeam, isFinalTable: boolean) {
+  if (isFinalTable || team.best === team.worst) return String(isFinalTable ? team.position : team.best);
+  return `${team.best}–${team.worst}`;
+}
+
 export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const [data, setData] = useState(initialData);
   const [results, setResults] = useState<Results>({});
   const [focusTeam, setFocusTeam] = useState('');
   const [flashState, setFlashState] = useState({ teams: new Set<string>(), version: 0 });
+  const [exactRanges, setExactRanges] = useState<PlacementRanges | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<'calculating' | 'ready' | 'error'>('calculating');
+  const [analysisDuration, setAnalysisDuration] = useState(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let active = true;
     fetch('/api/superettan', { cache: 'no-store' })
       .then((response) => response.ok ? response.json() as Promise<CompetitionData> : null)
-      .then((nextData) => { if (active && nextData) setData(nextData); })
+      .then((nextData) => {
+        if (active && nextData) {
+          setAnalysisStatus('calculating');
+          setExactRanges(null);
+          setData(nextData);
+        }
+      })
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
@@ -109,8 +124,13 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const lastRound = Math.max(...data.fixtures.map((fixture) => fixture.round), data.currentRound);
   const horizonRound = lastRound;
   const visibleFixtures = useMemo(() => data.fixtures.filter((fixture) => fixture.round > data.currentRound), [data]);
+  const remainingFixtures = useMemo(() => visibleFixtures.filter((fixture) => !results[fixture.id]), [visibleFixtures, results]);
   const baseWithSelections = useMemo(() => calculateTable(data, visibleFixtures, results), [data, visibleFixtures, results]);
-  const table = useMemo(() => possiblePositions(baseWithSelections, visibleFixtures, results), [baseWithSelections, visibleFixtures, results]);
+  const approximateTable = useMemo(() => possiblePositions(baseWithSelections, visibleFixtures, results), [baseWithSelections, visibleFixtures, results]);
+  const table = useMemo(() => approximateTable.map((team) => {
+    const range = exactRanges?.[team.name];
+    return range ? { ...team, ...range } : team;
+  }), [approximateTable, exactRanges]);
   const ranges = useMemo(() => pointRanges(baseWithSelections, visibleFixtures, results), [baseWithSelections, visibleFixtures, results]);
   const focusRange = focusTeam ? ranges.get(focusTeam) : undefined;
   const relevantTeams = useMemo(() => new Set(table.filter((team) => {
@@ -122,6 +142,40 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const chosenCount = visibleFixtures.filter((fixture) => results[fixture.id]).length;
   const isFinalTable = visibleFixtures.every((fixture) => Boolean(results[fixture.id]));
 
+  useEffect(() => {
+    let worker: Worker | null = null;
+    const timer = window.setTimeout(() => {
+      worker = new Worker(new URL('../workers/placement.worker.ts', import.meta.url));
+      worker.onmessage = (event: MessageEvent<{ ranges?: PlacementRanges; durationMs?: number; error?: string }>) => {
+        if (event.data.ranges) {
+          setExactRanges(event.data.ranges);
+          setAnalysisDuration(event.data.durationMs ?? 0);
+          setAnalysisStatus('ready');
+        } else {
+          setAnalysisStatus('error');
+        }
+        worker?.terminate();
+      };
+      worker.onerror = () => setAnalysisStatus('error');
+      worker.postMessage({ teams: baseWithSelections, fixtures: remainingFixtures });
+    }, 80);
+
+    return () => {
+      window.clearTimeout(timer);
+      worker?.terminate();
+    };
+  }, [baseWithSelections, remainingFixtures]);
+
+  const markAnalysisPending = () => {
+    setAnalysisStatus('calculating');
+    setExactRanges(null);
+  };
+
+  const resetSimulation = () => {
+    markAnalysisPending();
+    setResults({});
+  };
+
   const flashFixtureTeams = (fixture: Fixture) => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
     setFlashState((current) => ({ teams: new Set([fixture.home, fixture.away]), version: current.version + 1 }));
@@ -131,6 +185,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   };
 
   const setQuickResult = (fixture: Fixture, value: '1' | 'X' | '2') => {
+    markAnalysisPending();
     setResults((current) => {
       if (outcome(current[fixture.id]) === value) {
         const next = { ...current }; delete next[fixture.id]; return next;
@@ -141,6 +196,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   };
 
   const setExactScore = (fixture: Fixture, side: 'home' | 'away', rawValue: string) => {
+    markAnalysisPending();
     setResults((current) => {
       if (rawValue === '') { const next = { ...current }; delete next[fixture.id]; return next; }
       const score = Math.max(0, Math.min(30, Number(rawValue)));
@@ -178,7 +234,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
           <section className="overflow-hidden rounded-2xl border border-slate-300 bg-slate-100 shadow-sm lg:order-2 lg:flex lg:min-h-0 lg:flex-col">
             <div className="flex items-center justify-between border-b border-slate-300 bg-slate-200/70 px-3 py-2">
               <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary"><Target className="size-3.5" /> Matcher · omg {data.currentRound + 1}–{horizonRound}</div><h2 className="mt-0.5 font-bold">Välj 1/X/2 eller exakt resultat</h2></div>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span><strong className="text-foreground">{chosenCount}/{visibleFixtures.length}</strong> matcher valda</span><Button variant="ghost" size="sm" onClick={() => setResults({})} disabled={!Object.keys(results).length}><RotateCcw /> Återställ</Button></div>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span><strong className="text-foreground">{chosenCount}/{visibleFixtures.length}</strong> matcher valda</span><Button variant="ghost" size="sm" onClick={resetSimulation} disabled={!Object.keys(results).length}><RotateCcw /> Återställ</Button></div>
             </div>
             <div className="max-h-[72vh] overflow-y-auto overscroll-contain lg:min-h-0 lg:flex-1 lg:max-h-none">
               {rounds.map((round) => {
@@ -220,7 +276,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
 
           <section className="overflow-hidden rounded-2xl border bg-card shadow-sm lg:order-1 lg:flex lg:min-h-0 lg:flex-col">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
-              <div><p className="text-xs font-bold uppercase tracking-wider text-primary">Simulerad tabell</p><h2 className="font-bold">Läget efter dina val</h2></div>
+              <div><p className="text-xs font-bold uppercase tracking-wider text-primary">Simulerad tabell</p><div className="flex items-center gap-2"><h2 className="font-bold">Läget efter dina val</h2>{analysisStatus === 'calculating' ? <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary"><LoaderCircle className="size-3 animate-spin" />Analyserar matchschemat</span> : analysisStatus === 'ready' ? <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700"><CheckCircle2 className="size-3" />Exakt · {analysisDuration < 1000 ? `${analysisDuration} ms` : `${(analysisDuration / 1000).toFixed(1).replace('.', ',')} s`}</span> : <span className="text-[10px] font-medium text-amber-700">Förenklat spann</span>}</div></div>
               <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] text-muted-foreground"><span><i className="mr-1 inline-block h-0.5 w-3 bg-emerald-500 align-middle" />Direktuppflyttning</span><span><i className="mr-1 inline-block h-0.5 w-3 bg-sky-500 align-middle" />Kval till Allsvenskan</span><span><i className="mr-1 inline-block h-0.5 w-3 bg-amber-500 align-middle" />Kval till Superettan</span><span><i className="mr-1 inline-block h-0.5 w-3 bg-rose-500 align-middle" />Nedflyttning</span></div>
             </div>
             <div className="overflow-x-auto lg:flex-1">
@@ -231,13 +287,13 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                     const focused = Boolean(focusTeam) && team.name === focusTeam;
                     const flashing = flashState.teams.has(team.name);
                     return <tr key={team.id} className={cn('transition-colors hover:bg-muted/35', focused && 'bg-primary/[0.08] font-semibold', flashing && (flashState.version % 2 === 0 ? 'table-row-flash-a' : 'table-row-flash-b'), team.position === 3 && 'border-t-2 border-t-emerald-500/70', team.position === 5 && 'border-t-2 border-t-sky-500/70', team.position === 13 && 'border-t-2 border-t-amber-500/70', team.position === 15 && 'border-t-2 border-t-rose-500/70')}>
-                      <td className={cn('px-2 py-1.5 text-center font-bold', zoneBorderClass(team.position))}>{team.position}</td><td className="max-w-44 px-2 py-1.5"><span className={cn('flex min-w-0 items-center gap-1.5 font-semibold', focused && 'text-primary')}><span className="truncate">{team.name}</span>{team.worst <= 2 && <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-label="Topp 2 säkrat" />}</span></td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.played}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.won}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.drawn}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.lost}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.goalsFor}–{team.goalsAgainst}</td><td className="px-2 py-1.5 text-center">{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}</td><td className="px-2 py-1.5 text-center text-sm font-black">{team.points}</td><td className="bg-primary/[0.025] px-2 py-1.5 text-center font-bold tabular-nums">{isFinalTable ? team.position : `${team.best}–${team.worst}`}</td>
+                      <td className={cn('px-2 py-1.5 text-center font-bold', zoneBorderClass(team.position))}>{team.position}</td><td className="max-w-44 px-2 py-1.5"><span className={cn('flex min-w-0 items-center gap-1.5 font-semibold', focused && 'text-primary')}><span className="truncate">{team.name}</span>{analysisStatus === 'ready' && team.worst <= 2 && <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-label="Topp 2 säkrat" />}</span></td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.played}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.won}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.drawn}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.lost}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.goalsFor}–{team.goalsAgainst}</td><td className="px-2 py-1.5 text-center">{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}</td><td className="px-2 py-1.5 text-center text-sm font-black">{team.points}</td><td className={cn('bg-primary/[0.025] px-2 py-1.5 text-center font-bold tabular-nums', analysisStatus === 'calculating' && 'text-muted-foreground')}>{placementLabel(team, isFinalTable)}</td>
                     </tr>;
                   })}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-start gap-2 border-t bg-muted/35 px-3 py-2 text-[10px] leading-snug text-muted-foreground"><CircleHelp className="mt-0.5 size-3 shrink-0" /><p><strong className="text-foreground">Möjlig placering</strong> visar lagets placeringsspann över alla återstående matcher. <CheckCircle2 className="mx-0.5 inline size-3 text-emerald-600" /> betyder att topp 2 är säkrat.</p></div>
+            <div className="flex items-start gap-2 border-t bg-muted/35 px-3 py-2 text-[10px] leading-snug text-muted-foreground"><CircleHelp className="mt-0.5 size-3 shrink-0" /><p><strong className="text-foreground">Möjlig placering</strong> analyserar de återstående matchmötena med 1–0, 0–0 och 0–1 samt kontrollerar om poäng och målskillnad teoretiskt kan hämtas in. <CheckCircle2 className="mx-0.5 inline size-3 text-emerald-600" /> betyder att topp 2 är säkrat.</p></div>
           </section>
         </div>
       </div>

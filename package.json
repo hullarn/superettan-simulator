@@ -6,8 +6,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "build:sites": "vinext build",
     "lint": "oxlint",
@@ -21,7 +21,9 @@
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.2",
+    "highs": "1.15.2",
     "input-otp": "1.4.2",
+    "javascript-lp-solver": "1.0.3",
     "lucide-react": "1.31.0",
     "next": "16.2.0",
     "react": "19.2.6",
