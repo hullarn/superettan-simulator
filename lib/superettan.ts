@@ -16,8 +16,13 @@ export type Fixture = {
   round: number;
   date: string;
   time: string;
+  kickoffAt?: string;
   home: string;
   away: string;
+  status?: string;
+  homeScore?: number;
+  awayScore?: number;
+  apiId?: string;
 };
 
 export type CompetitionData = {
@@ -29,9 +34,21 @@ export type CompetitionData = {
   fixtures: Fixture[];
 };
 
-const id = (name: string) => name.toLocaleLowerCase('sv-SE').replace(/[^a-zåäöé]+/g, '-').replace(/(^-|-$)/g, '');
+export const teamId = (name: string) => name.toLocaleLowerCase('sv-SE').replace(/[^a-zåäöé]+/g, '-').replace(/(^-|-$)/g, '');
 
-const team = (
+const DISPLAY_TEAM_NAMES: Record<string, string> = {
+  'Varbergs BoIS FC': 'Varbergs BoIS',
+  'Nordic United FC': 'Nordic United',
+  'Östersund': 'Östersunds FK',
+};
+
+export const displayTeamName = (name: string) => DISPLAY_TEAM_NAMES[name] ?? name;
+
+const FINISHED_FIXTURE_STATUSES = new Set(['FINISHED', 'AFTER_ET', 'AFTER_PEN', 'AWARDED']);
+
+export const isFinishedFixture = (fixture: Fixture) => FINISHED_FIXTURE_STATUSES.has(fixture.status ?? '');
+
+export const createTeamStanding = (
   name: string,
   shortName: string,
   played: number,
@@ -41,7 +58,7 @@ const team = (
   goalsFor: number,
   goalsAgainst: number,
   points: number,
-): TeamStanding => ({ id: id(name), name, shortName, played, won, drawn, lost, goalsFor, goalsAgainst, points });
+): TeamStanding => ({ id: teamId(name), name, shortName, played, won, drawn, lost, goalsFor, goalsAgainst, points });
 
 export const SNAPSHOT: CompetitionData = {
   season: 2026,
@@ -49,22 +66,22 @@ export const SNAPSHOT: CompetitionData = {
   updatedAt: '2026-08-26T02:01:00+02:00',
   source: 'snapshot',
   teams: [
-    team('IFK Norrköping', 'Norrköping', 20, 14, 2, 4, 38, 12, 44),
-    team('Falkenbergs FF', 'Falkenberg', 20, 10, 5, 5, 37, 29, 35),
-    team('Varbergs BoIS FC', 'Varberg', 20, 10, 4, 6, 35, 26, 34),
-    team('Östersund', 'Östersund', 20, 9, 7, 4, 29, 22, 34),
-    team('Nordic United FC', 'Nordic United', 20, 8, 8, 4, 31, 27, 32),
-    team('Östers IF', 'Öster', 20, 10, 2, 8, 31, 29, 32),
-    team('Landskrona BoIS', 'Landskrona', 20, 8, 6, 6, 26, 21, 30),
-    team('Sandvikens IF', 'Sandviken', 20, 8, 5, 7, 35, 28, 29),
-    team('IK Oddevold', 'Oddevold', 20, 7, 8, 5, 33, 28, 29),
-    team('Helsingborgs IF', 'Helsingborg', 20, 7, 4, 9, 33, 40, 25),
-    team('Norrby IF', 'Norrby', 20, 4, 11, 5, 25, 27, 23),
-    team('IK Brage', 'Brage', 20, 5, 6, 9, 34, 38, 21),
-    team('Ljungskile SK', 'Ljungskile', 20, 5, 6, 9, 25, 29, 21),
-    team('Örebro SK', 'Örebro', 20, 4, 7, 9, 20, 32, 19),
-    team('IFK Värnamo', 'Värnamo', 20, 5, 4, 11, 24, 38, 19),
-    team('GIF Sundsvall', 'Sundsvall', 20, 3, 1, 16, 14, 44, 10),
+    createTeamStanding('IFK Norrköping', 'Norrköping', 20, 14, 2, 4, 38, 12, 44),
+    createTeamStanding('Falkenbergs FF', 'Falkenberg', 20, 10, 5, 5, 37, 29, 35),
+    createTeamStanding('Varbergs BoIS FC', 'Varberg', 20, 10, 4, 6, 35, 26, 34),
+    createTeamStanding('Östersund', 'Östersund', 20, 9, 7, 4, 29, 22, 34),
+    createTeamStanding('Nordic United FC', 'Nordic United', 20, 8, 8, 4, 31, 27, 32),
+    createTeamStanding('Östers IF', 'Öster', 20, 10, 2, 8, 31, 29, 32),
+    createTeamStanding('Landskrona BoIS', 'Landskrona', 20, 8, 6, 6, 26, 21, 30),
+    createTeamStanding('Sandvikens IF', 'Sandviken', 20, 8, 5, 7, 35, 28, 29),
+    createTeamStanding('IK Oddevold', 'Oddevold', 20, 7, 8, 5, 33, 28, 29),
+    createTeamStanding('Helsingborgs IF', 'Helsingborg', 20, 7, 4, 9, 33, 40, 25),
+    createTeamStanding('Norrby IF', 'Norrby', 20, 4, 11, 5, 25, 27, 23),
+    createTeamStanding('IK Brage', 'Brage', 20, 5, 6, 9, 34, 38, 21),
+    createTeamStanding('Ljungskile SK', 'Ljungskile', 20, 5, 6, 9, 25, 29, 21),
+    createTeamStanding('Örebro SK', 'Örebro', 20, 4, 7, 9, 20, 32, 19),
+    createTeamStanding('IFK Värnamo', 'Värnamo', 20, 5, 4, 11, 24, 38, 19),
+    createTeamStanding('GIF Sundsvall', 'Sundsvall', 20, 3, 1, 16, 14, 44, 10),
   ],
   fixtures: [
     ['21-1',21,'2026-08-29','13:00','Ljungskile SK','IFK Värnamo'],['21-2',21,'2026-08-29','13:00','Landskrona BoIS','Östersund'],['21-3',21,'2026-08-29','15:00','Falkenbergs FF','IK Brage'],['21-4',21,'2026-08-29','17:00','Nordic United FC','IFK Norrköping'],['21-5',21,'2026-08-30','15:00','Varbergs BoIS FC','IK Oddevold'],['21-6',21,'2026-08-30','17:00','Sandvikens IF','Östers IF'],['21-7',21,'2026-08-31','19:00','GIF Sundsvall','Norrby IF'],['21-8',21,'2026-09-01','19:00','Helsingborgs IF','Örebro SK'],
@@ -81,46 +98,17 @@ export const SNAPSHOT: CompetitionData = {
 };
 
 const NAME_ALIASES: Record<string, string> = {
-  'ifk norrkoping': 'IFK Norrköping', 'ifk norrköping fk': 'IFK Norrköping', 'ifk norrkoping fk': 'IFK Norrköping',
-  'falkenbergs ff': 'Falkenbergs FF', 'varbergs bois fc': 'Varbergs BoIS FC', 'ostersunds fk': 'Östersund', 'östersunds fk': 'Östersund',
-  'united nordic': 'Nordic United FC', 'nordic united fc': 'Nordic United FC', 'osters if': 'Östers IF', 'östers if': 'Östers IF',
-  'landskrona bois': 'Landskrona BoIS', 'sandviken': 'Sandvikens IF', 'sandvikens if': 'Sandvikens IF', 'oddevold': 'IK Oddevold', 'ik oddevold': 'IK Oddevold',
-  'helsingborg': 'Helsingborgs IF', 'helsingborgs if': 'Helsingborgs IF', 'norrby if': 'Norrby IF', 'ik brage': 'IK Brage', 'ljungskile sk': 'Ljungskile SK',
-  'orebro sk': 'Örebro SK', 'örebro sk': 'Örebro SK', 'ifk varnamo': 'IFK Värnamo', 'ifk värnamo': 'IFK Värnamo', 'gif sundsvall': 'GIF Sundsvall',
+  'norrkoping': 'IFK Norrköping', 'norrköping': 'IFK Norrköping', 'ifk norrkoping': 'IFK Norrköping', 'ifk norrköping fk': 'IFK Norrköping', 'ifk norrkoping fk': 'IFK Norrköping',
+  'falkenberg': 'Falkenbergs FF', 'falkenbergs ff': 'Falkenbergs FF', 'varberg': 'Varbergs BoIS FC', 'varbergs bois fc': 'Varbergs BoIS FC',
+  'ostersund': 'Östersund', 'östersund': 'Östersund', 'ostersunds fk': 'Östersund', 'östersunds fk': 'Östersund',
+  'united nordic': 'Nordic United FC', 'nordic united': 'Nordic United FC', 'nordic united fc': 'Nordic United FC',
+  'oster': 'Östers IF', 'öster': 'Östers IF', 'osters if': 'Östers IF', 'östers if': 'Östers IF',
+  'landskrona': 'Landskrona BoIS', 'landskrona bois': 'Landskrona BoIS', 'sandviken': 'Sandvikens IF', 'sandvikens if': 'Sandvikens IF',
+  'oddevold': 'IK Oddevold', 'ik oddevold': 'IK Oddevold', 'helsingborg': 'Helsingborgs IF', 'helsingborgs if': 'Helsingborgs IF',
+  'norrby': 'Norrby IF', 'norrby if': 'Norrby IF', 'brage': 'IK Brage', 'ik brage': 'IK Brage', 'ljungskile': 'Ljungskile SK', 'ljungskile sk': 'Ljungskile SK',
+  'orebro': 'Örebro SK', 'örebro': 'Örebro SK', 'orebro sk': 'Örebro SK', 'örebro sk': 'Örebro SK',
+  'varnamo': 'IFK Värnamo', 'värnamo': 'IFK Värnamo', 'ifk varnamo': 'IFK Värnamo', 'ifk värnamo': 'IFK Värnamo',
+  'sundsvall': 'GIF Sundsvall', 'gif sundsvall': 'GIF Sundsvall',
 };
 
-const canonicalName = (value: string) => NAME_ALIASES[value.trim().toLocaleLowerCase('sv-SE')] ?? value.trim();
-
-export async function fetchCompetitionData(): Promise<CompetitionData> {
-  const apiKey = process.env.APIFOOTBALL_API_KEY;
-  if (!apiKey) return SNAPSHOT;
-
-  const base = 'https://apiv3.apifootball.com/';
-  const standingsUrl = `${base}?action=get_standings&league_id=305&APIkey=${encodeURIComponent(apiKey)}`;
-  const fixturesUrl = `${base}?action=get_events&from=2026-01-01&to=2026-12-31&league_id=305&APIkey=${encodeURIComponent(apiKey)}`;
-  const [standingsResponse, fixturesResponse] = await Promise.all([
-    fetch(standingsUrl, { next: { revalidate: 900 } }),
-    fetch(fixturesUrl, { next: { revalidate: 900 } }),
-  ]);
-  if (!standingsResponse.ok || !fixturesResponse.ok) return SNAPSHOT;
-
-  const standings = await standingsResponse.json() as Record<string, string>[];
-  const events = await fixturesResponse.json() as Record<string, string>[];
-  if (!Array.isArray(standings) || !Array.isArray(events) || standings.length < 16) return SNAPSHOT;
-
-  const teams = standings.map((row) => {
-    const name = canonicalName(row.team_name);
-    return team(name, SNAPSHOT.teams.find((entry) => entry.name === name)?.shortName ?? name, Number(row.overall_league_payed), Number(row.overall_league_W), Number(row.overall_league_D), Number(row.overall_league_L), Number(row.overall_league_GF), Number(row.overall_league_GA), Number(row.overall_league_PTS));
-  });
-  const played = Math.min(...teams.map((entry) => entry.played));
-  const fixtures = events.filter((event) => !event.match_hometeam_score && event.match_status !== 'Finished').map((event, index) => ({
-    id: event.match_id || `api-${index}`,
-    round: Number((event.match_round || '').match(/\d+/)?.[0]) || Math.min(30, played + 1 + Math.floor(index / 8)),
-    date: event.match_date,
-    time: event.match_time?.slice(0, 5) || '',
-    home: canonicalName(event.match_hometeam_name),
-    away: canonicalName(event.match_awayteam_name),
-  })).filter((fixture) => teams.some((entry) => entry.name === fixture.home) && teams.some((entry) => entry.name === fixture.away));
-
-  return { season: 2026, currentRound: played, updatedAt: new Date().toISOString(), source: 'live', teams, fixtures: fixtures.length ? fixtures : SNAPSHOT.fixtures.filter((fixture) => fixture.round > played) };
-}
+export const canonicalTeamName = (value: string) => NAME_ALIASES[value.trim().toLocaleLowerCase('sv-SE')] ?? value.trim();

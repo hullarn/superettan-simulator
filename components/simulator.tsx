@@ -1,17 +1,23 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, CircleHelp, LoaderCircle, RotateCcw, Target } from 'lucide-react';
+import { CheckCircle2, ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { PlacementRanges } from '@/lib/exact-placement';
-import type { CompetitionData, Fixture, TeamStanding } from '@/lib/superettan';
+import { displayTeamName, isFinishedFixture, type CompetitionData, type Fixture, type TeamStanding } from '@/lib/superettan';
 
 type MatchResult = { home: number; away: number };
 type Results = Record<string, MatchResult>;
 type SimTeam = TeamStanding & { goalDifference: number; position: number; best: number; worst: number };
 
 const weekday = new Intl.DateTimeFormat('sv-SE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' });
+const updatedDay = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' });
+function formatFixtureDate(date: string) {
+  const formatted = weekday.format(new Date(`${date}T12:00:00`)).replaceAll('.', '');
+  return formatted.charAt(0).toLocaleUpperCase('sv-SE') + formatted.slice(1);
+}
 
 function outcome(result?: MatchResult) {
   if (!result) return null;
@@ -79,68 +85,75 @@ function possiblePositions(table: TeamStanding[], fixtures: Fixture[], results: 
   });
 }
 
-function zoneBorderClass(position: number) {
-  if (position <= 2) return 'border-l-4 border-l-emerald-500';
-  if (position <= 4) return 'border-l-4 border-l-sky-500';
-  if (position <= 12) return 'border-l-4 border-l-transparent';
-  if (position <= 14) return 'border-l-4 border-l-amber-500';
-  return 'border-l-4 border-l-rose-500';
-}
-
 function placementLabel(team: SimTeam, isFinalTable: boolean) {
   if (isFinalTable || team.best === team.worst) return String(isFinalTable ? team.position : team.best);
   return `${team.best}–${team.worst}`;
 }
 
 export function Simulator({ initialData }: { initialData: CompetitionData }) {
-  const [data, setData] = useState(initialData);
+  const data = initialData;
+  const lastUpdated = updatedDay.format(new Date(data.updatedAt)).replaceAll('.', '');
   const [results, setResults] = useState<Results>({});
-  const [focusTeam, setFocusTeam] = useState('');
+  const [focusTeams, setFocusTeams] = useState<Set<string>>(() => new Set());
   const [flashState, setFlashState] = useState({ teams: new Set<string>(), version: 0 });
   const [exactRanges, setExactRanges] = useState<PlacementRanges | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<'calculating' | 'ready' | 'error'>('calculating');
-  const [analysisDuration, setAnalysisDuration] = useState(0);
+  const [hasMoreMatchesBelow, setHasMoreMatchesBelow] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/api/superettan', { cache: 'no-store' })
-      .then((response) => response.ok ? response.json() as Promise<CompetitionData> : null)
-      .then((nextData) => {
-        if (active && nextData) {
-          setAnalysisStatus('calculating');
-          setExactRanges(null);
-          setData(nextData);
-        }
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, []);
+  const matchesScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => () => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
   }, []);
 
-  const lastRound = Math.max(...data.fixtures.map((fixture) => fixture.round), data.currentRound);
-  const horizonRound = lastRound;
-  const visibleFixtures = useMemo(() => data.fixtures.filter((fixture) => fixture.round > data.currentRound), [data]);
-  const remainingFixtures = useMemo(() => visibleFixtures.filter((fixture) => !results[fixture.id]), [visibleFixtures, results]);
-  const baseWithSelections = useMemo(() => calculateTable(data, visibleFixtures, results), [data, visibleFixtures, results]);
-  const approximateTable = useMemo(() => possiblePositions(baseWithSelections, visibleFixtures, results), [baseWithSelections, visibleFixtures, results]);
+  const upcomingFixtures = useMemo(
+    () => data.fixtures.filter((fixture) => fixture.round > data.currentRound && !isFinishedFixture(fixture)),
+    [data],
+  );
+  const focusTeamOptions = useMemo(() => sortedTeams(data.teams), [data.teams]);
+  const visibleFixtures = useMemo(
+    () => focusTeams.size === 0
+      ? upcomingFixtures
+      : upcomingFixtures.filter((fixture) => focusTeams.has(fixture.home) || focusTeams.has(fixture.away)),
+    [focusTeams, upcomingFixtures],
+  );
+  const remainingFixtures = useMemo(() => upcomingFixtures.filter((fixture) => !results[fixture.id]), [upcomingFixtures, results]);
+  const baseWithSelections = useMemo(() => calculateTable(data, upcomingFixtures, results), [data, upcomingFixtures, results]);
+  const approximateTable = useMemo(() => possiblePositions(baseWithSelections, upcomingFixtures, results), [baseWithSelections, upcomingFixtures, results]);
   const table = useMemo(() => approximateTable.map((team) => {
     const range = exactRanges?.[team.name];
     return range ? { ...team, ...range } : team;
   }), [approximateTable, exactRanges]);
-  const ranges = useMemo(() => pointRanges(baseWithSelections, visibleFixtures, results), [baseWithSelections, visibleFixtures, results]);
-  const focusRange = focusTeam ? ranges.get(focusTeam) : undefined;
-  const relevantTeams = useMemo(() => new Set(table.filter((team) => {
-    if (!focusTeam || !focusRange) return false;
-    const range = ranges.get(team.name)!;
-    return team.name === focusTeam || (range.max >= focusRange.min && range.min <= focusRange.max);
-  }).map((team) => team.name)), [table, ranges, focusTeam, focusRange]);
   const rounds = [...new Set(visibleFixtures.map((fixture) => fixture.round))];
-  const chosenCount = visibleFixtures.filter((fixture) => results[fixture.id]).length;
-  const isFinalTable = visibleFixtures.every((fixture) => Boolean(results[fixture.id]));
+  const chosenCount = upcomingFixtures.filter((fixture) => results[fixture.id]).length;
+  const isFinalTable = upcomingFixtures.every((fixture) => Boolean(results[fixture.id]));
+  const focusLabel = focusTeams.size === 0
+    ? 'Välj fokuslag'
+    : focusTeams.size === 1
+      ? displayTeamName([...focusTeams][0])
+      : `${focusTeams.size} lag valda`;
+
+  useEffect(() => {
+    const scrollArea = matchesScrollRef.current;
+    if (!scrollArea) return;
+
+    const updateFade = () => {
+      const hasOverflowBelow = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight > 1;
+      setHasMoreMatchesBelow((current) => current === hasOverflowBelow ? current : hasOverflowBelow);
+    };
+
+    updateFade();
+    scrollArea.addEventListener('scroll', updateFade, { passive: true });
+    const resizeObserver = new ResizeObserver(updateFade);
+    resizeObserver.observe(scrollArea);
+    window.addEventListener('resize', updateFade);
+
+    return () => {
+      scrollArea.removeEventListener('scroll', updateFade);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateFade);
+    };
+  }, [visibleFixtures]);
 
   useEffect(() => {
     let worker: Worker | null = null;
@@ -149,7 +162,6 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
       worker.onmessage = (event: MessageEvent<{ ranges?: PlacementRanges; durationMs?: number; error?: string }>) => {
         if (event.data.ranges) {
           setExactRanges(event.data.ranges);
-          setAnalysisDuration(event.data.durationMs ?? 0);
           setAnalysisStatus('ready');
         } else {
           setAnalysisStatus('error');
@@ -174,6 +186,15 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const resetSimulation = () => {
     markAnalysisPending();
     setResults({});
+  };
+
+  const toggleFocusTeam = (teamName: string, checked: boolean) => {
+    setFocusTeams((current) => {
+      const next = new Set(current);
+      if (checked) next.add(teamName);
+      else next.delete(teamName);
+      return next;
+    });
   };
 
   const flashFixtureTeams = (fixture: Fixture) => {
@@ -207,96 +228,110 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   };
 
   return (
-    <main className="min-h-screen bg-background text-foreground lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
-      <header className="shrink-0 border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2 px-3 py-1.5 lg:flex-nowrap lg:px-4">
-          <div className="mr-2 flex shrink-0 items-center gap-2">
-            <div className="grid size-7 place-items-center rounded-md bg-primary text-[10px] font-black text-primary-foreground">SE</div>
-            <div className="flex items-baseline gap-2"><h1 className="text-sm font-bold tracking-tight">Slutspurten</h1><p className="hidden text-[9px] font-bold uppercase tracking-[0.16em] text-primary sm:block">Superettan {data.season}</p></div>
-          </div>
-          <label className="flex min-w-0 flex-1 items-center gap-2 text-[11px] font-bold text-muted-foreground lg:max-w-[310px]">
-            <span className="shrink-0">Fokuslag</span>
-            <select value={focusTeam} onChange={(event) => setFocusTeam(event.target.value)} className="h-8 min-w-0 flex-1 rounded-md border bg-white px-2 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring/30">
-              <option value="">Inget fokuslag</option>
-              {sortedTeams(data.teams).map((team) => <option key={team.id} value={team.name}>{team.name}</option>)}
-            </select>
-          </label>
-          <div className="ml-auto flex items-center gap-1.5">
-            <span className={cn('hidden rounded-full px-2.5 py-1 text-[11px] font-semibold sm:inline-flex', data.source === 'live' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800')}>
-              <span className="mr-1.5">{data.source === 'live' ? '●' : '○'}</span>{data.source === 'live' ? 'API-data' : `Datakopia · omg ${data.currentRound}`}
-            </span>
-          </div>
+    <main className="app-shell">
+      <header className="app-header">
+        <div className="brand-lockup">
+          <h1 className="brand-title">Slutspurten</h1>
+          <span className="brand-season">Superettan {data.season}</span>
+        </div>
+        <div className="header-tools">
+          <span className="data-source">Uppdaterad {lastUpdated} {data.source === 'live' ? '(API)' : '(datakopia)'}</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="focus-select" aria-label={`Välj fokuslag. ${focusLabel}`}>
+              <span className="focus-select-label">{focusLabel}</span>
+              <ChevronDown aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="focus-select-content" align="end" sideOffset={6}>
+              {focusTeamOptions.map((team) => (
+                <DropdownMenuCheckboxItem
+                  className="focus-select-item"
+                  key={team.id}
+                  checked={focusTeams.has(team.name)}
+                  closeOnClick={false}
+                  onCheckedChange={(checked) => toggleFocusTeam(team.name, checked)}
+                >
+                  {displayTeamName(team.name)}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col px-3 py-2 sm:px-4 lg:min-h-0 lg:px-4 lg:py-2">
-        <div className="grid min-h-0 flex-1 items-start gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:items-stretch">
-          <section className="overflow-hidden rounded-2xl border border-slate-300 bg-slate-100 shadow-sm lg:order-2 lg:flex lg:min-h-0 lg:flex-col">
-            <div className="flex items-center justify-between border-b border-slate-300 bg-slate-200/70 px-3 py-2">
-              <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary"><Target className="size-3.5" /> Matcher · omg {data.currentRound + 1}–{horizonRound}</div><h2 className="mt-0.5 font-bold">Välj 1/X/2 eller exakt resultat</h2></div>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><span><strong className="text-foreground">{chosenCount}/{visibleFixtures.length}</strong> matcher valda</span><Button variant="ghost" size="sm" onClick={resetSimulation} disabled={!Object.keys(results).length}><RotateCcw /> Återställ</Button></div>
-            </div>
-            <div className="max-h-[72vh] overflow-y-auto overscroll-contain lg:min-h-0 lg:flex-1 lg:max-h-none">
-              {rounds.map((round) => {
-                const roundFixtures = visibleFixtures.filter((fixture) => fixture.round === round);
-                const selected = roundFixtures.filter((fixture) => results[fixture.id]).length;
-                return <section key={round}>
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-y border-slate-300 bg-slate-300/90 px-3 py-1 text-[10px] font-bold backdrop-blur first:border-t-0"><span>OMGÅNG {round}</span><span className="font-medium text-muted-foreground">{selected} av {roundFixtures.length} valda</span></div>
-                  <div className="divide-y divide-slate-300">
-                    {roundFixtures.map((fixture) => {
-                      const result = results[fixture.id];
-                      const relevant = Boolean(focusTeam) && (relevantTeams.has(fixture.home) || relevantTeams.has(fixture.away));
-                      const focusMatch = Boolean(focusTeam) && (fixture.home === focusTeam || fixture.away === focusTeam);
-                      return <article key={fixture.id} className={cn('relative px-2.5 py-1.5', focusMatch && 'bg-primary/[0.09]')}>
-                        {focusMatch && <span className="absolute inset-y-0 left-0 w-1 bg-primary" />}
-                        <div className="lg:grid lg:grid-cols-[100px_minmax(0,1fr)_auto_88px] lg:items-center lg:gap-1.5">
-                          <div className="mb-1.5 flex items-center justify-between text-[10px] text-muted-foreground lg:mb-0"><span className="capitalize">{weekday.format(new Date(`${fixture.date}T12:00:00`))} · <span className="font-medium">{fixture.time}</span></span>{focusTeam && <span className="lg:hidden">{focusMatch ? 'Fokusmatch' : relevant ? 'Kan påverka fokuslaget' : 'Saknar betydelse i spannet'}</span>}</div>
-                          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5">
-                            <span className={cn('truncate text-right text-xs font-semibold xl:text-[13px]', fixture.home === focusTeam && 'text-primary')}>{fixture.home}</span>
-                            <span className="text-[10px] text-muted-foreground">–</span>
-                            <span className={cn('truncate text-xs font-semibold xl:text-[13px]', fixture.away === focusTeam && 'text-primary')}>{fixture.away}</span>
-                          </div>
-                          <div className="mt-1.5 flex items-center justify-center gap-1 lg:mt-0">
-                            {(['1','X','2'] as const).map((value) => <Button key={value} size="sm" className="h-7 min-w-7 px-2" variant={outcome(result) === value ? 'default' : 'outline'} onClick={() => setQuickResult(fixture, value)} aria-label={`${fixture.home} mot ${fixture.away}: ${value}`}>{value}</Button>)}
-                          </div>
-                          <div className="mt-1.5 flex items-center justify-center gap-1.5 lg:mt-0">
-                          <span className="text-[10px] font-medium text-muted-foreground lg:hidden">Exakt</span>
-                          <input aria-label={`${fixture.home} mål`} type="number" min="0" max="30" inputMode="numeric" value={result?.home ?? ''} onChange={(event) => setExactScore(fixture, 'home', event.target.value)} className="h-6 w-9 rounded-md border bg-white text-center text-xs font-bold outline-none focus:ring-2 focus:ring-ring/30" />
-                          <span className="text-muted-foreground">–</span>
-                          <input aria-label={`${fixture.away} mål`} type="number" min="0" max="30" inputMode="numeric" value={result?.away ?? ''} onChange={(event) => setExactScore(fixture, 'away', event.target.value)} className="h-6 w-9 rounded-md border bg-white text-center text-xs font-bold outline-none focus:ring-2 focus:ring-ring/30" />
-                          </div>
-                        </div>
-                      </article>;
-                    })}
-                  </div>
-                </section>;
-              })}
-            </div>
-          </section>
+      <div className="workspace">
+        <section className="workspace-panel table-panel" aria-labelledby="table-title">
+          <div className="panel-header">
+            <h2 id="table-title" className="panel-title">Simulerad tabell</h2>
+          </div>
 
-          <section className="overflow-hidden rounded-2xl border bg-card shadow-sm lg:order-1 lg:flex lg:min-h-0 lg:flex-col">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
-              <div><p className="text-xs font-bold uppercase tracking-wider text-primary">Simulerad tabell</p><div className="flex items-center gap-2"><h2 className="font-bold">Läget efter dina val</h2>{analysisStatus === 'calculating' ? <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary"><LoaderCircle className="size-3 animate-spin" />Analyserar matchschemat</span> : analysisStatus === 'ready' ? <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700"><CheckCircle2 className="size-3" />Exakt · {analysisDuration < 1000 ? `${analysisDuration} ms` : `${(analysisDuration / 1000).toFixed(1).replace('.', ',')} s`}</span> : <span className="text-[10px] font-medium text-amber-700">Förenklat spann</span>}</div></div>
-              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] text-muted-foreground"><span><i className="mr-1 inline-block h-0.5 w-3 bg-emerald-500 align-middle" />Direktuppflyttning</span><span><i className="mr-1 inline-block h-0.5 w-3 bg-sky-500 align-middle" />Kval till Allsvenskan</span><span><i className="mr-1 inline-block h-0.5 w-3 bg-amber-500 align-middle" />Kval till Superettan</span><span><i className="mr-1 inline-block h-0.5 w-3 bg-rose-500 align-middle" />Nedflyttning</span></div>
-            </div>
-            <div className="overflow-x-auto lg:flex-1">
-              <table className="w-full min-w-[610px] text-[12px] 2xl:text-[13px]">
-                <thead className="border-b bg-muted/70 text-[10px] font-bold uppercase tracking-wide text-muted-foreground"><tr><th className="w-8 px-2 py-2 text-center">#</th><th className="px-2 py-2 text-left">Lag</th><th className="px-2 py-2 text-center">M</th><th className="px-2 py-2 text-center">V</th><th className="px-2 py-2 text-center">O</th><th className="px-2 py-2 text-center">F</th><th className="px-2 py-2 text-center">Mål</th><th className="px-2 py-2 text-center">MS</th><th className="px-2 py-2 text-center">P</th><th className="bg-primary/[0.04] px-2 py-2 text-center">Möjlig placering</th></tr></thead>
-                <tbody className="divide-y">
-                  {table.map((team) => {
-                    const focused = Boolean(focusTeam) && team.name === focusTeam;
-                    const flashing = flashState.teams.has(team.name);
-                    return <tr key={team.id} className={cn('transition-colors hover:bg-muted/35', focused && 'bg-primary/[0.08] font-semibold', flashing && (flashState.version % 2 === 0 ? 'table-row-flash-a' : 'table-row-flash-b'), team.position === 3 && 'border-t-2 border-t-emerald-500/70', team.position === 5 && 'border-t-2 border-t-sky-500/70', team.position === 13 && 'border-t-2 border-t-amber-500/70', team.position === 15 && 'border-t-2 border-t-rose-500/70')}>
-                      <td className={cn('px-2 py-1.5 text-center font-bold', zoneBorderClass(team.position))}>{team.position}</td><td className="max-w-44 px-2 py-1.5"><span className={cn('flex min-w-0 items-center gap-1.5 font-semibold', focused && 'text-primary')}><span className="truncate">{team.name}</span>{analysisStatus === 'ready' && team.worst <= 2 && <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-label="Topp 2 säkrat" />}</span></td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.played}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.won}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.drawn}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.lost}</td><td className="px-2 py-1.5 text-center text-muted-foreground">{team.goalsFor}–{team.goalsAgainst}</td><td className="px-2 py-1.5 text-center">{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}</td><td className="px-2 py-1.5 text-center text-sm font-black">{team.points}</td><td className={cn('bg-primary/[0.025] px-2 py-1.5 text-center font-bold tabular-nums', analysisStatus === 'calculating' && 'text-muted-foreground')}>{placementLabel(team, isFinalTable)}</td>
-                    </tr>;
+          <div className="table-scroll">
+            <table className="standings-table">
+              <thead>
+                <tr>
+                  <th>#</th><th className="team-column">Lag</th><th>M</th><th>V</th><th>O</th><th>F</th><th>Mål</th><th>MS</th><th>P</th><th>Möjlig<br />placering</th>
+                </tr>
+              </thead>
+              <tbody>
+                {table.map((team) => {
+                  const flashing = flashState.teams.has(team.name);
+                  const zoneDivider = team.position === 3 || team.position === 5 || team.position === 13 || team.position === 15;
+                  return <tr key={team.id} className={cn(zoneDivider && 'zone-divider', flashing && (flashState.version % 2 === 0 ? 'table-row-flash-a' : 'table-row-flash-b'))}>
+                    <td>{team.position}</td>
+                    <td className="team-cell"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{displayTeamName(team.name)}</span>{analysisStatus === 'ready' && team.worst <= 2 && <CheckCircle2 className="secured-icon" aria-label="Topp 2 säkrat" />}</span></td>
+                    <td>{team.played}</td><td>{team.won}</td><td>{team.drawn}</td><td>{team.lost}</td><td>{team.goalsFor}–{team.goalsAgainst}</td><td>{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}</td><td className="points-cell">{team.points}</td><td className={cn('placement-cell', analysisStatus === 'calculating' && 'opacity-50')}>{placementLabel(team, isFinalTable)}</td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="table-note">Möjlig placering analyserar de återstående matchmötena med 1–0, 0–0 och 0–1 samt kontrollerar om poäng och målskillnad teoretiskt kan hämtas in. Checkmarkering betyder att topp 2 är säkrat.</p>
+        </section>
+
+        <section className="workspace-panel matches-panel" aria-labelledby="matches-title">
+          <div className="panel-header">
+            <h2 id="matches-title" className="panel-title">Matcher</h2>
+            <Button variant="ghost" size="sm" className="reset-button" onClick={resetSimulation} disabled={!Object.keys(results).length} aria-label={`Återställ ${chosenCount} valda matcher`}>
+              Återställ <RotateCcw />
+            </Button>
+          </div>
+
+          <div ref={matchesScrollRef} className={cn('matches-scroll', hasMoreMatchesBelow && 'has-bottom-fade')}>
+            {rounds.map((round) => {
+              const roundFixtures = visibleFixtures.filter((fixture) => fixture.round === round);
+              const selected = roundFixtures.filter((fixture) => results[fixture.id]).length;
+              return <section key={round} className="round-block" aria-labelledby={`round-${round}`}>
+                <div className="round-heading">
+                  <span id={`round-${round}`} className="round-label">Omgång {round}</span>
+                  <span className="round-count">{selected}/{roundFixtures.length} valda</span>
+                </div>
+                <div className="fixture-list">
+                  {roundFixtures.map((fixture) => {
+                    const result = results[fixture.id];
+                    return <article key={fixture.id} className="fixture-row">
+                      <div className="fixture-date">{formatFixtureDate(fixture.date)} · {fixture.time}</div>
+                      <div className="fixture-teams">
+                        <span className="fixture-team-home">{displayTeamName(fixture.home)}</span>
+                        <span className="fixture-separator">–</span>
+                        <span className="fixture-team-away">{displayTeamName(fixture.away)}</span>
+                      </div>
+                      <div className="outcome-buttons">
+                        {(['1', 'X', '2'] as const).map((value) => <Button key={value} size="sm" variant="outline" className={cn('outcome-button', outcome(result) === value && 'is-selected')} onClick={() => setQuickResult(fixture, value)} aria-label={`${displayTeamName(fixture.home)} mot ${displayTeamName(fixture.away)}: ${value}`}>{value}</Button>)}
+                      </div>
+                      <div className="score-inputs">
+                        <input aria-label={`${displayTeamName(fixture.home)} mål`} type="number" min="0" max="30" inputMode="numeric" value={result?.home ?? ''} onChange={(event) => setExactScore(fixture, 'home', event.target.value)} className="score-input" />
+                        <span className="score-dash">–</span>
+                        <input aria-label={`${displayTeamName(fixture.away)} mål`} type="number" min="0" max="30" inputMode="numeric" value={result?.away ?? ''} onChange={(event) => setExactScore(fixture, 'away', event.target.value)} className="score-input" />
+                      </div>
+                    </article>;
                   })}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-start gap-2 border-t bg-muted/35 px-3 py-2 text-[10px] leading-snug text-muted-foreground"><CircleHelp className="mt-0.5 size-3 shrink-0" /><p><strong className="text-foreground">Möjlig placering</strong> analyserar de återstående matchmötena med 1–0, 0–0 och 0–1 samt kontrollerar om poäng och målskillnad teoretiskt kan hämtas in. <CheckCircle2 className="mx-0.5 inline size-3 text-emerald-600" /> betyder att topp 2 är säkrat.</p></div>
-          </section>
-        </div>
+                </div>
+              </section>;
+            })}
+          </div>
+        </section>
       </div>
+
     </main>
   );
 }
