@@ -335,6 +335,7 @@ button, input, select { font: inherit; }
   height: min(calc(100% - 12px), 690px);
   width: 100%;
   min-width: 560px;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 12.5px;
@@ -355,6 +356,28 @@ button, input, select { font: inherit; }
 .standings-table th:first-child { border-radius: 13px 0 0 13px; }
 .standings-table th:last-child { border-radius: 0 13px 13px 0; }
 .standings-table th.team-column { text-align: left; }
+
+.standings-table th:nth-child(1) { width: 5%; }
+.standings-table th:nth-child(2) { width: 23.5%; }
+.standings-table th:nth-child(3) { width: 6%; }
+.standings-table th:nth-child(4) { width: 8.25%; }
+.standings-table th:nth-child(5) { width: 7.25%; }
+.standings-table th:nth-child(6) { width: 5%; }
+.standings-table th:nth-child(7) { width: 11.5%; }
+.standings-table th:nth-child(8) { width: 10%; }
+.standings-table th:nth-child(9) { width: 9.5%; }
+.standings-table th:nth-child(10) { width: 14%; }
+
+.standings-table th:nth-child(4),
+.standings-table td:nth-child(4) { text-align: right; padding-right: 2px; }
+.standings-table th:nth-child(6),
+.standings-table td:nth-child(6) { text-align: left; padding-left: 2px; }
+.standings-table th:nth-child(7),
+.standings-table td:nth-child(7) { text-align: right; padding-right: 4px; }
+.standings-table th:nth-child(8),
+.standings-table td:nth-child(8) { text-align: left; padding-left: 11px; }
+.standings-table th:nth-child(9),
+.standings-table td:nth-child(9) { text-align: left; padding-left: 14px; }
 
 .standings-table td {
   height: 35px;
