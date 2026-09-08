@@ -266,6 +266,8 @@ button, input, select { font: inherit; }
 .focus-select-content .focus-select-item:focus *,
 .focus-select-content .focus-select-item[data-highlighted] * { color: inherit !important; }
 
+.focus-select-content .focus-select-item .focus-team-position { color: #f2e8c4 !important; }
+
 .focus-select-content .focus-select-item[data-checked] [data-slot='dropdown-menu-checkbox-item-indicator'] {
   color: #292a31 !important;
 }

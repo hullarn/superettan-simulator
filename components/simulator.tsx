@@ -242,7 +242,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
               <ChevronDown aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="focus-select-content" align="end" sideOffset={6}>
-              {focusTeamOptions.map((team) => (
+              {focusTeamOptions.map((team, index) => (
                 <DropdownMenuCheckboxItem
                   className="focus-select-item"
                   key={team.id}
@@ -250,7 +250,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                   closeOnClick={false}
                   onCheckedChange={(checked) => toggleFocusTeam(team.name, checked)}
                 >
-                  {displayTeamName(team.name)}
+                  <span className="focus-team-position">{index + 1}.</span>{' '}{displayTeamName(team.name)}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
