@@ -285,7 +285,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
             </table>
           </div>
 
-          <p className="table-note">Möjlig placering analyserar de återstående matchmötena med 1–0, 0–0 och 0–1 samt kontrollerar om poäng och målskillnad teoretiskt kan hämtas in. Checkmarkering betyder att topp 2 är säkrat.</p>
+          <p className="table-note">Möjlig placering analyserar de återstående matchmötena med 1–0, 0–0 och 0–1 samt kontrollerar om poäng och målskillnad teoretiskt kan hämtas in.</p>
         </section>
 
         <section className="workspace-panel matches-panel" aria-labelledby="matches-title">
