@@ -332,7 +332,7 @@ button, input, select { font: inherit; }
 .table-scroll { min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; }
 
 .standings-table {
-  height: calc(100% - 12px);
+  height: min(calc(100% - 12px), 738px);
   width: 100%;
   min-width: 560px;
   border-collapse: separate;
@@ -358,6 +358,7 @@ button, input, select { font: inherit; }
 
 .standings-table td {
   height: 35px;
+  max-height: 43px;
   border-bottom: 1px solid #c9c8be;
   padding: 1px 7px 2px;
   text-align: center;
@@ -740,8 +741,8 @@ button, input, select { font: inherit; }
   .matches-panel { order: -1; }
 }
 
-@media (min-width: 1180px) and (max-height: 950px) {
-  .standings-table td { height: clamp(24px, calc(6.33svh - 22.7px), 35px); }
+@media (min-width: 1180px) {
+  .standings-table td { height: clamp(24px, calc(6.33svh - 22.7px), 43px); }
 }
 
 @media (min-width: 1180px) and (max-width: 1450px) {
