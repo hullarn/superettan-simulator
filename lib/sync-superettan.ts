@@ -89,6 +89,7 @@ export async function syncSuperettan(trigger: SyncTrigger, force: boolean): Prom
       const comparisonMessage = result.diagnostics.standingsMismatchTeams === null
         ? 'standings-jämförelse saknas'
         : `${result.diagnostics.standingsMismatchTeams.length} avvikande standings-rader`;
+      const scheduleMessage = `${result.diagnostics.scheduleMismatchIds.length} schemaavvikelser`;
       state = {
         version: 1,
         data: result.data,
@@ -99,7 +100,7 @@ export async function syncSuperettan(trigger: SyncTrigger, force: boolean): Prom
           lastSuccessAt: now,
           lastResult: 'success',
           lastTrigger: trigger,
-          message: `Uppdateringen lyckades (${result.requestCount} API-anrop, ${result.diagnostics.finishedFixtureCount} slutresultat, ${result.diagnostics.appliedOverrideIds.length} administrativ override, ${comparisonMessage}).`,
+          message: `Uppdateringen lyckades (${result.requestCount} API-anrop, ${result.diagnostics.finishedFixtureCount} slutresultat, ${result.diagnostics.appliedOverrideIds.length} administrativ override, ${scheduleMessage}, ${comparisonMessage}).`,
           upstreamRequests: result.requestCount,
         },
       };

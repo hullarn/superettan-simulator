@@ -11,6 +11,7 @@ import {
   ADMINISTRATIVE_RESULT_OVERRIDES,
   findAdministrativeResultOverride,
 } from '@/lib/administrative-result-overrides';
+import { applyScheduleOverrides, findScheduleOverride } from '@/lib/schedule-overrides';
 
 const API_BASE_URL = 'https://api.goal-api.com/v1';
 const DEFAULT_LEAGUE_ID = 'cmr77dvit0057rx06s7xypict';
@@ -288,7 +289,7 @@ function newFixtureFromApi(incoming: GoalFixture): Fixture | null {
   }, incoming);
 }
 
-export function mergeGoalFixtures(existingFixtures: Fixture[], apiFixtures: GoalFixture[]) {
+export function mergeGoalFixtures(existingFixtures: Fixture[], apiFixtures: GoalFixture[], season = SNAPSHOT.season) {
   const knownTeams = new Set(SNAPSHOT.teams.map((team) => team.name));
   const merged = new Map<string, Fixture>();
 
@@ -315,11 +316,27 @@ export function mergeGoalFixtures(existingFixtures: Fixture[], apiFixtures: Goal
     if (roundSize < MATCHES_PER_ROUND) merged.set(key, candidate);
   }
 
-  return [...merged.values()].sort((a, b) =>
-    a.round - b.round
-    || `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)
-    || a.id.localeCompare(b.id),
-  );
+  return applyScheduleOverrides([...merged.values()], season);
+}
+
+function scheduleMismatchIds(season: number, apiFixtures: GoalFixture[]) {
+  const mismatches = new Set<string>();
+  for (const incoming of deduplicateApiFixtures(apiFixtures)) {
+    const override = findScheduleOverride(
+      season,
+      extractRound(incoming.matchRound),
+      incoming.homeTeamName ?? '',
+      incoming.awayTeamName ?? '',
+    );
+    if (!override) continue;
+    const kickoff = incoming.kickoffUtc
+      ? swedishKickoffParts(incoming.kickoffUtc) ?? rawKickoffParts(incoming)
+      : rawKickoffParts(incoming);
+    if (kickoff && (kickoff.date !== override.date || kickoff.time !== override.time)) {
+      mismatches.add(override.id);
+    }
+  }
+  return [...mismatches];
 }
 
 function completedRound(fixtures: Fixture[]) {
@@ -401,6 +418,7 @@ export async function fetchGoalCompetitionData(baseData: CompetitionData): Promi
   diagnostics: {
     finishedFixtureCount: number;
     appliedOverrideIds: string[];
+    scheduleMismatchIds: string[];
     standingsMismatchTeams: string[] | null;
   };
 }> {
@@ -425,7 +443,8 @@ export async function fetchGoalCompetitionData(baseData: CompetitionData): Promi
     if (!leagueFixtures.length) throw new Error('GOAL API returnerade inga Superettan-matcher för säsongen.');
 
     const calculated = calculateStandingsFromFixtures(season, leagueFixtures);
-    const fixtures = mergeGoalFixtures(baseData.fixtures, leagueFixtures);
+    const fixtures = mergeGoalFixtures(baseData.fixtures, leagueFixtures, season);
+    const mismatchedScheduleIds = scheduleMismatchIds(season, leagueFixtures);
     const standingsMismatchTeams = compareWithGoalStandings(
       calculated.teams,
       standingsPayload?.data ?? null,
@@ -435,6 +454,7 @@ export async function fetchGoalCompetitionData(baseData: CompetitionData): Promi
       diagnostics: {
         finishedFixtureCount: calculated.finishedFixtureCount,
         appliedOverrideIds: calculated.appliedOverrideIds,
+        scheduleMismatchIds: mismatchedScheduleIds,
         standingsMismatchTeams,
       },
       data: {

@@ -1,4 +1,5 @@
 import { SNAPSHOT, type CompetitionData } from '@/lib/superettan';
+import { applyScheduleOverrides } from '@/lib/schedule-overrides';
 
 export type SyncResult = 'never' | 'success' | 'error';
 export type SyncTrigger = 'manual' | 'automatic';
@@ -48,7 +49,7 @@ function absoluteFilePath(filePath: string) {
 export function createInitialCompetitionState(): StoredCompetitionState {
   return {
     version: 1,
-    data: SNAPSHOT,
+    data: { ...SNAPSHOT, fixtures: applyScheduleOverrides(SNAPSHOT.fixtures, SNAPSHOT.season) },
     sync: {
       lastAutomaticCheckAt: null,
       lastAttemptAt: null,
@@ -215,7 +216,14 @@ export function getCompetitionStore(): CompetitionStore {
 }
 
 export async function loadCompetitionState() {
-  return (await getCompetitionStore().load()) ?? createInitialCompetitionState();
+  const state = (await getCompetitionStore().load()) ?? createInitialCompetitionState();
+  return {
+    ...state,
+    data: {
+      ...state.data,
+      fixtures: applyScheduleOverrides(state.data.fixtures, state.data.season),
+    },
+  };
 }
 
 export async function loadCompetitionData() {
