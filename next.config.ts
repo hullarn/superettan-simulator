@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID,
   async headers() {
     const noIndexHeaders = [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }];
     return [

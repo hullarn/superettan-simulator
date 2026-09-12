@@ -56,12 +56,13 @@ jobs:
             -o ConnectTimeout=20 \
             -o StrictHostKeyChecking=yes \
             "$ODERLAND_USER@$ODERLAND_HOST" \
-            "bash -se -- '$GITHUB_SHA'" <<'REMOTE_SCRIPT'
+            "bash -se -- '$GITHUB_SHA' '$GITHUB_RUN_ID' '$GITHUB_RUN_ATTEMPT'" <<'REMOTE_SCRIPT'
           set -Eeuo pipefail
 
           readonly APP_DIR='/home/psdnahem/apps/slutspurten'
           readonly NODE_VERSION='22.23.2'
           readonly EXPECTED_SHA="$1"
+          readonly RELEASE_ID="${EXPECTED_SHA}-$2-$3"
 
           cd "$APP_DIR"
 
@@ -93,9 +94,5 @@ jobs:
             exit 1
           fi
 
-          corepack pnpm install --frozen-lockfile
-          corepack pnpm build
-
-          mkdir -p tmp
-          touch tmp/restart.txt
+          bash scripts/deploy-oderland.sh "$EXPECTED_SHA" "$RELEASE_ID"
           REMOTE_SCRIPT

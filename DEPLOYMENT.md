@@ -28,7 +28,7 @@ Builden måste göras innan Passenger startas eller startas om. Kör aldrig `pnp
 - `develop` är den långlivade integrationsbranchen för Vercels stabila testmiljö.
 - Kortlivade `feature/*`- och `fix/*`-brancher skapas från `develop`. Varje push/PR får en egen Vercel Preview Deployment.
 - Efter godkänd preview mergas ändringen till `develop` för samlad test. När en release är godkänd mergas `develop` till `main`.
-- Varje push eller merge till `main` startar GitHub Actions-workflowen **Deploy Oderland production**, som uppdaterar Oderland via SSH.
+- Varje push eller merge till `main` startar GitHub Actions-workflowen **Deploy Oderland production**, som bygger en separat release och aktiverar den atomiskt via SSH.
 - Samma workflow kan startas manuellt med **Run workflow** (`workflow_dispatch`) från GitHubs Actions-flik.
 - Pusha aldrig lokala `.env*`, `.data/`, buildartefakter eller den permanenta datafilen.
 
@@ -179,7 +179,7 @@ npx --yes pnpm@11.19.0 install --frozen-lockfile
 npx --yes pnpm@11.19.0 build
 ```
 
-Starta eller starta om appen med cPanels **Start app/Restart**. `touch tmp/restart.txt` är motsvarande Passenger-omstart via SSH.
+Starta eller starta om appen med cPanels **Start app/Restart**. `touch tmp/restart.txt` är motsvarande Passenger-signal via SSH, men Passenger behandlar inte signalen synkront. Vid automatiska deployments väntar därför workflowen alltid på den nya releasens health check innan körningen kan lyckas.
 
 ### 4. Verifiera före DNS-byte
 
@@ -214,22 +214,25 @@ Workflowen `.github/workflows/deploy-oderland.yml` körs vid varje push till `ma
 | Variable | `ODERLAND_HOST` | Oderlands SSH-värdnamn |
 | Variable | `ODERLAND_USER` | Oderlands SSH-användare (`psdnahem`) |
 
-Workflowen ansluter till `/home/psdnahem/apps/slutspurten`, laddar `$HOME/.nvm/nvm.sh`, använder exakt Node 22.23.2 och verifierar att serverns checkout är `main` utan ändrade spårade filer. Därefter körs:
+Workflowen ansluter till `/home/psdnahem/apps/slutspurten`, laddar `$HOME/.nvm/nvm.sh`, använder exakt Node 22.23.2 och verifierar att serverns checkout är `main` utan ändrade spårade filer. Därefter hämtas exakt committen som utlöste körningen och `scripts/deploy-oderland.sh` utför deploymenten.
 
 ```bash
 cd /home/psdnahem/apps/slutspurten
 source "$HOME/.nvm/nvm.sh"
 nvm use 22.23.2
 git pull --ff-only origin main
-corepack pnpm install --frozen-lockfile
-corepack pnpm build
-mkdir -p tmp
-touch tmp/restart.txt
+bash scripts/deploy-oderland.sh GITHUB_SHA RELEASE_ID
 ```
 
-Alla kommandon körs med strikt felhantering och deploymenten avbryts om SSH, versionskontroll, Git-pull, installation eller build misslyckas. Passenger startas bara om efter en godkänd build genom att `tmp/restart.txt` uppdateras. Workflowen verifierar dessutom att serverns `HEAD` motsvarar committen som utlöste körningen och serialiserar production-deployments så att två byggen inte kör samtidigt.
+Deploymentscriptet skapar en ny katalog under `.releases/`, exporterar Git-committen som Next.js `deploymentId` och kör `corepack pnpm install --frozen-lockfile` samt `corepack pnpm build` där. Den aktiva releasens `.next` byggs alltså aldrig om eller ersätts medan den betjänar trafik. Först när hela den nya builden är klar byts symlänken `.current` atomiskt till den nya releasekatalogen och `tmp/restart.txt` uppdateras.
 
-Den persistenta katalogen `/home/psdnahem/slutspurten-data/` ligger utanför application root och refereras inte av workflowen. Git-pull, dependency-installation, build och Passenger-omstart påverkar därför inte datafilen.
+`app.cjs` ligger kvar i application root och startar den release som `.current` pekar på. Vid bytet kopieras de content-hashade CSS-/JS-assets som hör till de två angränsande releaserna åt båda håll. Därmed fungerar både gammal och ny HTML även om en webbläsares asset-anrop råkar passera själva omstartsögonblicket. De fem senaste releasekatalogerna behålls som rollbackmöjlighet; äldre releaser rensas först efter en godkänd deployment.
+
+Efter omstart pollar workflowen `/api/health` tills Passenger verkligen svarar med den väntade Git-committen. Därefter hämtas startsidan, dess `data-dpl-id` kontrolleras och samtliga refererade CSS- och JavaScript-assets måste svara med HTTP 200 och rätt innehållstyp. Om den nya processen eller någon asset inte godkänns återställs `.current` till föregående release, Passenger signaleras igen och workflowen misslyckas. En lyckad `touch` räcker alltså inte för att deploymenten ska rapporteras som klar.
+
+Alla kommandon körs med strikt felhantering och deploymenten avbryts om SSH, versionskontroll, Git-pull, installation, build, aktivering eller health check misslyckas. Workflowen verifierar dessutom att serverns `HEAD` motsvarar committen som utlöste körningen och serialiserar production-deployments så att två byggen inte kör samtidigt.
+
+Den persistenta katalogen `/home/psdnahem/slutspurten-data/` ligger utanför application root, `.releases/` och deploymentscriptets städning. Git-pull, dependency-installation, build, releasebyte och Passenger-omstart påverkar därför inte datafilerna.
 
 Vid behov kan samma workflow startas manuellt från **Actions → Deploy Oderland production → Run workflow**. De manuella SSH-kommandona ovan ska endast användas för felsökning om Actions inte kan köras.
 
@@ -238,10 +241,10 @@ Vid behov kan samma workflow startas manuellt från **Actions → Deploy Oderlan
 | Område | Oderland production | Vercel preview/test |
 | --- | --- | --- |
 | Process | Långlivad Node 22-process via cPanel/Passenger och `app.cjs` | Vercel Functions/Next-runtime |
-| Build | GitHub Actions kör `pnpm build` via SSH vid push till `main` | Automatisk per Git-push |
+| Build | GitHub Actions bygger separat under `.releases/` och byter `.current` atomiskt vid push till `main` | Automatisk per Git-push |
 | Data | Permanenta, separata JSON-filer för tävlingsdata och statistik utanför Git | Separat Upstash/KV Redis; filstatistik avstängd |
 | Cron | cPanel Cron + `wget` + bearer-header | `vercel.json`; Vercel skickar bearer-header |
 | Production-källa | `main` | `develop` är endast stabil testbranch |
-| Omstart | cPanel Restart eller `touch tmp/restart.txt` | Ny deployment |
+| Omstart | cPanel Restart eller `touch tmp/restart.txt`; Actions verifierar rätt release och alla CSS-/JS-assets efteråt | Ny deployment |
 
 Filadaptern förutsätter en enda aktiv production-instans på Oderland. Starta inte flera Passenger-instanser som skriver samma datafil. Den befintliga fillåsningen skyddar samtidiga synkförsök i samma filsystem, men är inte avsedd som distribuerad lagring.
