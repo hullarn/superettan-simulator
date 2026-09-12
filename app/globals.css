@@ -404,8 +404,8 @@ button, input, select { font: inherit; }
   padding-top: 8px;
   color: #202129;
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 8.5px;
-  line-height: 1.32;
+  font-size: 9px;
+  line-height: 1.4;
 }
 
 .matches-scroll {
