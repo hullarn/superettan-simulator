@@ -7,7 +7,10 @@ import { loadAnalyticsSummary } from '@/lib/analytics-store';
 import { getCompetitionStore, loadCompetitionState } from '@/lib/competition-store';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Admin · Slutspurten' };
+export const metadata: Metadata = {
+  title: 'Admin · Slutspurten',
+  robots: { index: false, follow: false },
+};
 
 const formatter = new Intl.DateTimeFormat('sv-SE', {
   dateStyle: 'medium',
