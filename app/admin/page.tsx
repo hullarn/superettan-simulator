@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { CheckCircle2, CircleAlert, Database, LogOut, RefreshCw } from 'lucide-react';
 import { adminCookieName, isAdminConfigured, isAdminSessionValid } from '@/lib/admin-auth';
+import { loadAnalyticsSummary } from '@/lib/analytics-store';
 import { getCompetitionStore, loadCompetitionState } from '@/lib/competition-store';
 
 export const dynamic = 'force-dynamic';
@@ -13,9 +14,18 @@ const formatter = new Intl.DateTimeFormat('sv-SE', {
   timeStyle: 'medium',
   timeZone: 'Europe/Stockholm',
 });
+const dayFormatter = new Intl.DateTimeFormat('sv-SE', {
+  dateStyle: 'medium',
+  timeZone: 'Europe/Stockholm',
+});
+const numberFormatter = new Intl.NumberFormat('sv-SE');
 
 function dateLabel(value: string | null) {
   return value ? formatter.format(new Date(value)) : 'Aldrig';
+}
+
+function dayLabel(value: string) {
+  return dayFormatter.format(new Date(`${value}T12:00:00Z`));
 }
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ login?: string; sync?: string }> }) {
@@ -50,7 +60,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     );
   }
 
-  const [state, store] = await Promise.all([loadCompetitionState(), Promise.resolve(getCompetitionStore())]);
+  const [state, store, analytics] = await Promise.all([
+    loadCompetitionState(),
+    Promise.resolve(getCompetitionStore()),
+    loadAnalyticsSummary(),
+  ]);
   const success = state.sync.lastResult === 'success';
 
   return (
@@ -110,6 +124,76 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <div><dt>API-anrop vid senaste försök</dt><dd>{state.sync.upstreamRequests}</dd></div>
           <div><dt>Datakällans tidsstämpel</dt><dd>{dateLabel(state.data.updatedAt)}</dd></div>
         </dl>
+
+        <section className="admin-analytics">
+          <div className="admin-section-heading">
+            <h2>Besöksstatistik</h2>
+            <p>Cookiefri förstapartsstatistik. Unika besökare summeras per dag.</p>
+          </div>
+
+          {!analytics.configured && (
+            <div className="admin-alert">
+              <CircleAlert />
+              <span>Sätt <code>ANALYTICS_SECRET</code> och en beständig <code>ANALYTICS_FILE_PATH</code> för att aktivera statistiken.</span>
+            </div>
+          )}
+
+          <div className="admin-analytics-periods">
+            <article className="admin-status-card">
+              <span>Idag</span>
+              <strong>{numberFormatter.format(analytics.today.visits)} / {numberFormatter.format(analytics.today.unique)}</strong>
+              <small>Besök / unika</small>
+            </article>
+            <article className="admin-status-card">
+              <span>Senaste 7 dagar</span>
+              <strong>{numberFormatter.format(analytics.last7Days.visits)} / {numberFormatter.format(analytics.last7Days.unique)}</strong>
+              <small>Besök / unika dagsbesökare</small>
+            </article>
+            <article className="admin-status-card">
+              <span>Senaste 30 dagar</span>
+              <strong>{numberFormatter.format(analytics.last30Days.visits)} / {numberFormatter.format(analytics.last30Days.unique)}</strong>
+              <small>Besök / unika dagsbesökare</small>
+            </article>
+          </div>
+
+          <div className="admin-analytics-breakdown">
+            <article>
+              <h3>Enheter · senaste 30 dagar</h3>
+              <dl>
+                <div><dt>Mobil</dt><dd>{numberFormatter.format(analytics.devices.mobile)}</dd></div>
+                <div><dt>Desktop</dt><dd>{numberFormatter.format(analytics.devices.desktop)}</dd></div>
+              </dl>
+            </article>
+            <article>
+              <h3>Trafikkällor · senaste 30 dagar</h3>
+              {analytics.sources.length > 0 ? (
+                <dl>
+                  {analytics.sources.map(({ source, visits }) => (
+                    <div key={source}><dt>{source}</dt><dd>{numberFormatter.format(visits)}</dd></div>
+                  ))}
+                </dl>
+              ) : <p>Ingen trafik registrerad ännu.</p>}
+            </article>
+          </div>
+
+          <details className="admin-analytics-days">
+            <summary>Visa senaste 30 dagarna</summary>
+            <div className="admin-analytics-table-scroll">
+              <table>
+                <thead><tr><th>Datum</th><th>Besök</th><th>Unika</th></tr></thead>
+                <tbody>
+                  {analytics.days.map((day) => (
+                    <tr key={day.date}>
+                      <td>{dayLabel(day.date)}</td>
+                      <td>{numberFormatter.format(day.visits)}</td>
+                      <td>{numberFormatter.format(day.unique)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </section>
       </section>
     </main>
   );
