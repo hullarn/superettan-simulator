@@ -13,6 +13,7 @@ Applikationen är en vanlig Next.js 16-applikation. Den använder inga Vercel-AP
 | Del | Krav |
 | --- | --- |
 | Node.js | Senaste 22.x LTS, lägst 22.13.0 (`.nvmrc` och `engines.node`) |
+| Automatisk Oderland-build | Node 22.23.2 via NVM |
 | Package manager | pnpm 11.19.0 via Corepack (`packageManager`) |
 | Installation | `corepack pnpm install --frozen-lockfile` |
 | Production-build | `corepack pnpm build` (`next build --webpack`) |
@@ -27,7 +28,8 @@ Builden måste göras innan Passenger startas eller startas om. Kör aldrig `pnp
 - `develop` är den långlivade integrationsbranchen för Vercels stabila testmiljö.
 - Kortlivade `feature/*`- och `fix/*`-brancher skapas från `develop`. Varje push/PR får en egen Vercel Preview Deployment.
 - Efter godkänd preview mergas ändringen till `develop` för samlad test. När en release är godkänd mergas `develop` till `main`.
-- En merge till `main` ändrar inte Oderland automatiskt i den första versionen av flödet. Production uppdateras kontrollerat via SSH enligt kommandona nedan.
+- Varje push eller merge till `main` startar GitHub Actions-workflowen **Deploy Oderland production**, som uppdaterar Oderland via SSH.
+- Samma workflow kan startas manuellt med **Run workflow** (`workflow_dispatch`) från GitHubs Actions-flik.
 - Pusha aldrig lokala `.env*`, `.data/`, buildartefakter eller den permanenta datafilen.
 
 I Vercel ställs **Production Branch** till `develop`. Vercels benämning "Production" betyder då bara den stabila Vercel-testmiljön; verksamhetens production är fortfarande Oderland. Flytta bort den publika domänen från Vercel innan DNS växlas till Oderland.
@@ -193,13 +195,22 @@ tail -n 100 /home/CPANEL_USER/logs/slutspurten-passenger.log
 
 Byt inte DNS och ta inte bort Vercel-domänen förrän alla kontroller är godkända.
 
-## Senare production-deployments
+## Automatiska production-deployments
 
-Efter att den avsedda releasen mergats till `main`:
+Workflowen `.github/workflows/deploy-oderland.yml` körs vid varje push till `main` och kan även startas manuellt. Följande måste finnas under GitHub-repots **Settings → Secrets and variables → Actions**:
+
+| Typ | Namn | Innehåll |
+| --- | --- | --- |
+| Secret | `ODERLAND_SSH_KEY` | Privat SSH-nyckel som får logga in på Oderland |
+| Variable | `ODERLAND_HOST` | Oderlands SSH-värdnamn |
+| Variable | `ODERLAND_USER` | Oderlands SSH-användare (`psdnahem`) |
+
+Workflowen ansluter till `/home/psdnahem/apps/slutspurten`, laddar `$HOME/.nvm/nvm.sh`, använder exakt Node 22.23.2 och verifierar att serverns checkout är `main` utan ändrade spårade filer. Därefter körs:
 
 ```bash
-cd /home/CPANEL_USER/apps/slutspurten
-git status --short
+cd /home/psdnahem/apps/slutspurten
+source "$HOME/.nvm/nvm.sh"
+nvm use 22.23.2
 git pull --ff-only origin main
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
@@ -207,14 +218,18 @@ mkdir -p tmp
 touch tmp/restart.txt
 ```
 
-`git status --short` måste vara tomt före pull. Datafilen ligger utanför repot och påverkas inte. Vid fel: avbryt före omstart, behåll den redan körande processen och granska build-/Passenger-loggen. En robust automatisk eller atomisk releaseprocess kan införas senare; den ingår inte i detta första steg.
+Alla kommandon körs med strikt felhantering och deploymenten avbryts om SSH, versionskontroll, Git-pull, installation eller build misslyckas. Passenger startas bara om efter en godkänd build genom att `tmp/restart.txt` uppdateras. Workflowen verifierar dessutom att serverns `HEAD` motsvarar committen som utlöste körningen och serialiserar production-deployments så att två byggen inte kör samtidigt.
+
+Den persistenta katalogen `/home/psdnahem/slutspurten-data/` ligger utanför application root och refereras inte av workflowen. Git-pull, dependency-installation, build och Passenger-omstart påverkar därför inte datafilen.
+
+Vid behov kan samma workflow startas manuellt från **Actions → Deploy Oderland production → Run workflow**. De manuella SSH-kommandona ovan ska endast användas för felsökning om Actions inte kan köras.
 
 ## Providerspecifika skillnader
 
 | Område | Oderland production | Vercel preview/test |
 | --- | --- | --- |
 | Process | Långlivad Node 22-process via cPanel/Passenger och `app.cjs` | Vercel Functions/Next-runtime |
-| Build | Manuell `pnpm build` via SSH | Automatisk per Git-push |
+| Build | GitHub Actions kör `pnpm build` via SSH vid push till `main` | Automatisk per Git-push |
 | Data | Permanent lokal JSON-fil utanför Git | Separat Upstash/KV Redis |
 | Cron | cPanel Cron + `wget` + bearer-header | `vercel.json`; Vercel skickar bearer-header |
 | Production-källa | `main` | `develop` är endast stabil testbranch |

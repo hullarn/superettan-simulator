@@ -1,0 +1,101 @@
+name: Deploy Oderland production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oderland-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy main via SSH
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ODERLAND_HOST: ${{ vars.ODERLAND_HOST }}
+      ODERLAND_USER: ${{ vars.ODERLAND_USER }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          ODERLAND_SSH_KEY: ${{ secrets.ODERLAND_SSH_KEY }}
+        run: |
+          set -Eeuo pipefail
+          : "${ODERLAND_HOST:?GitHub variable ODERLAND_HOST is missing}"
+          : "${ODERLAND_USER:?GitHub variable ODERLAND_USER is missing}"
+          : "${ODERLAND_SSH_KEY:?GitHub secret ODERLAND_SSH_KEY is missing}"
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          ODERLAND_SSH_KEY: ${{ secrets.ODERLAND_SSH_KEY }}
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$ODERLAND_SSH_KEY" > "$HOME/.ssh/oderland"
+          chmod 600 "$HOME/.ssh/oderland"
+          ssh-keyscan -T 15 -H "$ODERLAND_HOST" > "$HOME/.ssh/known_hosts"
+          test -s "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy to Oderland
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh \
+            -i "$HOME/.ssh/oderland" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=yes \
+            "$ODERLAND_USER@$ODERLAND_HOST" \
+            "bash -se -- '$GITHUB_SHA'" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+
+          readonly APP_DIR='/home/psdnahem/apps/slutspurten'
+          readonly NODE_VERSION='22.23.2'
+          readonly EXPECTED_SHA="$1"
+
+          cd "$APP_DIR"
+
+          if [[ ! -s "$HOME/.nvm/nvm.sh" ]]; then
+            echo "NVM was not found at $HOME/.nvm/nvm.sh" >&2
+            exit 1
+          fi
+          # shellcheck source=/dev/null
+          source "$HOME/.nvm/nvm.sh"
+          nvm use --silent "$NODE_VERSION"
+
+          if [[ "$(node --version)" != "v$NODE_VERSION" ]]; then
+            echo "Expected Node v$NODE_VERSION, got $(node --version)" >&2
+            exit 1
+          fi
+          if [[ "$(git branch --show-current)" != 'main' ]]; then
+            echo "Oderland checkout is not on main" >&2
+            exit 1
+          fi
+          if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+            echo "Oderland checkout has modified tracked files" >&2
+            exit 1
+          fi
+
+          git pull --ff-only origin main
+
+          if [[ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]]; then
+            echo "Oderland checkout does not match GitHub commit $EXPECTED_SHA" >&2
+            exit 1
+          fi
+
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm build
+
+          mkdir -p tmp
+          touch tmp/restart.txt
+          REMOTE_SCRIPT
