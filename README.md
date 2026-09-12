@@ -20,6 +20,6 @@ Lagringen ligger bakom ett litet internt gränssnitt. Lokalt används `.data/sup
 
 ## GitHub och Vercel
 
-Projektet är ett vanligt Next.js-projekt. När GitHub-repot finns kan det importeras direkt i Vercel. Vercel skapar automatiskt en preview för varje ny branch eller pull request och publicerar produktionen från `main`.
+Projektet är ett vanligt Next.js-projekt. Oderland är production-miljö och Vercel används som preview/test. Vercel skapar automatiskt en preview för varje ny branch eller pull request.
 
-Koppla en Upstash Redis-databas via Vercel Marketplace och lägg in `GOAL_API_KEY`, `ADMIN_PASSWORD` och `CRON_SECRET` under **Project Settings → Environment Variables**. GOAL API använder som standard Superettan 2026-id:t i `.env.example`; liga-id och säsong kan ändras med miljövariablerna där.
+På Vercel används Upstash Redis. På Oderland används filadaptern och en permanent sökväg utanför Git-deploymenten. Fullständig drift-, branch- och serverkonfiguration finns i [DEPLOYMENT.md](DEPLOYMENT.md).
