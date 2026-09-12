@@ -42,6 +42,94 @@ export type AnalyticsSummary = {
 
 const MAX_RETAINED_DAYS = 35;
 const LOCK_WAIT_MS = 5_000;
+const AUTOMATED_USER_AGENT_MARKERS = [
+  'slutspurtendeploymenthealth/',
+  'github-actions',
+  'github-hookshot',
+  'googlebot',
+  'googleother',
+  'google-inspectiontool',
+  'storebot-google',
+  'adsbot-google',
+  'mediapartners-google',
+  'feedfetcher-google',
+  'bingbot',
+  'bingpreview',
+  'adidxbot',
+  'duckduckbot',
+  'baiduspider',
+  'yandexbot',
+  'yandeximages',
+  'yahoo! slurp',
+  'sogou',
+  'exabot',
+  'qwantify',
+  'applebot',
+  'petalbot',
+  'seznambot',
+  'naverbot',
+  'facebookexternalhit',
+  'facebookbot',
+  'facebot',
+  'meta-externalagent',
+  'meta-externalfetcher',
+  'messengerbot',
+  'twitterbot',
+  'linkedinbot',
+  'pinterestbot',
+  'slackbot',
+  'discordbot',
+  'telegrambot',
+  'whatsapp/',
+  'skypeuripreview',
+  'redditbot',
+  'tumblr',
+  'vkshare',
+  'snapchat',
+  'ahrefsbot',
+  'semrushbot',
+  'mj12bot',
+  'dotbot',
+  'blexbot',
+  'dataforseobot',
+  'bytespider',
+  'ccbot',
+  'gptbot',
+  'chatgpt-user',
+  'oai-searchbot',
+  'claudebot',
+  'claude-searchbot',
+  'anthropic-ai',
+  'perplexitybot',
+  'crawler',
+  'spider',
+  'scraper',
+  'headlesschrome',
+  'phantomjs',
+  'puppeteer',
+  'playwright',
+  'selenium',
+  'lighthouse',
+  'pagespeed insights',
+  'uptimerobot',
+  'pingdom',
+  'statuscake',
+  'site24x7',
+  'checkly',
+  'better uptime',
+  'datadogsynthetics',
+  'newrelicpinger',
+  'kube-probe',
+  'healthcheck',
+  'health-check',
+  'curl/',
+  'wget/',
+  'python-requests/',
+  'python-urllib/',
+  'aiohttp/',
+  'go-http-client/',
+  'libwww-perl/',
+] as const;
 const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Europe/Stockholm',
   year: 'numeric',
@@ -282,7 +370,15 @@ export function isAnalyticsConfigured() {
   return analyticsConfiguration() !== null;
 }
 
+export function isAutomatedUserAgent(userAgent: string | null) {
+  const candidate = userAgent?.trim().toLowerCase();
+  if (!candidate) return true;
+  return AUTOMATED_USER_AGENT_MARKERS.some((marker) => candidate.includes(marker));
+}
+
 export async function recordAnalyticsVisit(request: AnalyticsRequestData) {
+  if (isAutomatedUserAgent(request.userAgent)) return;
+
   let release: (() => Promise<void>) | null = null;
 
   try {
