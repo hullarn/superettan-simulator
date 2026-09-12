@@ -890,18 +890,14 @@ button, input, select { font: inherit; }
 @media (max-width: 760px) {
   .app-shell { padding-inline: 12px; }
   .app-header {
-    display: grid;
-    min-height: 88px;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-rows: 32px 40px;
-    align-content: center;
-    gap: 4px 12px;
+    min-height: 72px;
+    gap: 12px;
   }
-  .brand-lockup, .header-tools { display: contents; }
-  .brand-title { grid-column: 1 / -1; font-size: 23px; }
-  .brand-season { font-size: 10px; }
-  .data-source { overflow: hidden; font-size: 10px; text-align: right; text-overflow: ellipsis; }
-  .focus-select { width: min(58vw, 230px); grid-column: 3; }
+  .brand-lockup { flex: 0 1 auto; }
+  .header-tools { min-width: 0; flex: 1 1 auto; justify-content: flex-end; }
+  .brand-title { font-size: clamp(18px, 6vw, 23px); white-space: nowrap; }
+  .brand-season, .data-source { display: none; }
+  .focus-select { width: min(48vw, 230px); max-width: 100%; }
   .workspace-panel { min-height: 0; border-radius: 19px; padding: 22px 22px 26px; }
   .panel-header { min-height: 46px; padding-inline: 2px; }
   .panel-title { font-size: 18px; }
