@@ -3,14 +3,22 @@ type DeviceKind = 'mobile' | 'desktop';
 type AnalyticsDay = {
   date: string;
   visits: number;
-  visitors: string[];
+  unique: number;
+  visitorHashes?: string[];
   devices: Record<DeviceKind, number>;
   sources: Record<string, number>;
 };
 
 type StoredAnalytics = {
-  version: 1;
+  version: 2;
   days: Record<string, AnalyticsDay>;
+};
+
+type LegacyAnalyticsDay = Omit<AnalyticsDay, 'unique' | 'visitorHashes'> & { visitors: string[] };
+
+type LegacyStoredAnalytics = {
+  version: 1;
+  days: Record<string, LegacyAnalyticsDay>;
 };
 
 export type AnalyticsRequestData = {
@@ -87,8 +95,9 @@ function isAnalyticsDay(value: unknown): value is AnalyticsDay {
   return typeof day.date === 'string'
     && /^\d{4}-\d{2}-\d{2}$/.test(day.date)
     && isNonNegativeInteger(day.visits)
-    && Array.isArray(day.visitors)
-    && day.visitors.every((visitor) => typeof visitor === 'string')
+    && isNonNegativeInteger(day.unique)
+    && (day.visitorHashes === undefined
+      || (Array.isArray(day.visitorHashes) && day.visitorHashes.every((visitor) => typeof visitor === 'string')))
     && Boolean(day.devices)
     && isNonNegativeInteger(day.devices?.mobile)
     && isNonNegativeInteger(day.devices?.desktop)
@@ -99,21 +108,59 @@ function isAnalyticsDay(value: unknown): value is AnalyticsDay {
 function isStoredAnalytics(value: unknown): value is StoredAnalytics {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<StoredAnalytics>;
-  return state.version === 1
+  return state.version === 2
     && Boolean(state.days)
     && Object.entries(state.days ?? {}).every(([date, day]) => date === (day as AnalyticsDay)?.date && isAnalyticsDay(day));
 }
 
+function isLegacyAnalyticsDay(value: unknown): value is LegacyAnalyticsDay {
+  if (!value || typeof value !== 'object') return false;
+  const day = value as Partial<LegacyAnalyticsDay>;
+  return typeof day.date === 'string'
+    && /^\d{4}-\d{2}-\d{2}$/.test(day.date)
+    && isNonNegativeInteger(day.visits)
+    && Array.isArray(day.visitors)
+    && day.visitors.every((visitor) => typeof visitor === 'string')
+    && Boolean(day.devices)
+    && isNonNegativeInteger(day.devices?.mobile)
+    && isNonNegativeInteger(day.devices?.desktop)
+    && Boolean(day.sources)
+    && Object.entries(day.sources ?? {}).every(([source, visits]) => source.length > 0 && isNonNegativeInteger(visits));
+}
+
+function isLegacyStoredAnalytics(value: unknown): value is LegacyStoredAnalytics {
+  if (!value || typeof value !== 'object') return false;
+  const state = value as Partial<LegacyStoredAnalytics>;
+  return state.version === 1
+    && Boolean(state.days)
+    && Object.entries(state.days ?? {}).every(([date, day]) => date === (day as LegacyAnalyticsDay)?.date && isLegacyAnalyticsDay(day));
+}
+
+function migrateLegacyState(state: LegacyStoredAnalytics): StoredAnalytics {
+  return {
+    version: 2,
+    days: Object.fromEntries(Object.entries(state.days).map(([date, day]) => [date, {
+      date,
+      visits: day.visits,
+      unique: day.visitors.length,
+      visitorHashes: [...day.visitors],
+      devices: day.devices,
+      sources: day.sources,
+    }])),
+  };
+}
+
 function emptyState(): StoredAnalytics {
-  return { version: 1, days: {} };
+  return { version: 2, days: {} };
 }
 
 async function loadState(filePath: string) {
   const fs = await import('fs/promises');
   try {
     const parsed = JSON.parse(await fs.readFile(filePath, 'utf8')) as unknown;
-    if (!isStoredAnalytics(parsed)) throw new Error('Statistikfilen har ett okänt format.');
-    return parsed;
+    if (isStoredAnalytics(parsed)) return parsed;
+    if (isLegacyStoredAnalytics(parsed)) return migrateLegacyState(parsed);
+    throw new Error('Statistikfilen har ett okänt format.');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return emptyState();
     throw error;
@@ -225,6 +272,12 @@ function pruneDays(state: StoredAnalytics, today: string) {
   state.days = Object.fromEntries(Object.entries(state.days).filter(([date]) => retained.has(date)));
 }
 
+function removeCompletedDayHashes(state: StoredAnalytics, today: string) {
+  for (const [date, day] of Object.entries(state.days)) {
+    if (date !== today) delete day.visitorHashes;
+  }
+}
+
 export function isAnalyticsConfigured() {
   return analyticsConfiguration() !== null;
 }
@@ -240,10 +293,12 @@ export async function recordAnalyticsVisit(request: AnalyticsRequestData) {
 
     const date = stockholmDateKey();
     const state = await loadState(configuration.filePath);
+    removeCompletedDayHashes(state, date);
     const day = state.days[date] ?? {
       date,
       visits: 0,
-      visitors: [],
+      unique: 0,
+      visitorHashes: [],
       devices: { mobile: 0, desktop: 0 },
       sources: {},
     };
@@ -254,7 +309,11 @@ export async function recordAnalyticsVisit(request: AnalyticsRequestData) {
     day.visits += 1;
     day.devices[device] += 1;
     day.sources[source] = (day.sources[source] ?? 0) + 1;
-    if (visitor && !day.visitors.includes(visitor)) day.visitors.push(visitor);
+    day.visitorHashes ??= [];
+    if (visitor && !day.visitorHashes.includes(visitor)) {
+      day.visitorHashes.push(visitor);
+      day.unique += 1;
+    }
     state.days[date] = day;
     pruneDays(state, date);
     await saveState(configuration.filePath, state);
@@ -270,7 +329,7 @@ function periodTotals(state: StoredAnalytics, dates: string[]) {
     const day = state.days[date];
     if (day) {
       totals.visits += day.visits;
-      totals.unique += day.visitors.length;
+      totals.unique += day.unique;
     }
     return totals;
   }, { visits: 0, unique: 0 });
@@ -321,7 +380,7 @@ export async function loadAnalyticsSummary(): Promise<AnalyticsSummary> {
       days: last30Dates.map((date) => ({
         date,
         visits: state.days[date]?.visits ?? 0,
-        unique: state.days[date]?.visitors.length ?? 0,
+        unique: state.days[date]?.unique ?? 0,
       })),
     };
   } catch {

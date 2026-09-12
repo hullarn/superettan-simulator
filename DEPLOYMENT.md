@@ -93,7 +93,7 @@ mkdir -p /home/CPANEL_USER/slutspurten-data
 chmod 700 /home/CPANEL_USER/slutspurten-data
 ```
 
-Skapa inte tomma JSON-filer; adaptrarna skapar giltiga filer atomiskt vid första synkningen respektive första sidvisningen. Statistikfilen innehåller endast dagsräknare, enhetskategori, hänvisande domän eller `Direkt` samt dagsbundna HMAC-värden för unikräkning. IP-adress, fullständig referrer och user-agent sparas inte. Högst 35 kalenderdagar behålls och äldre dagsdata rensas automatiskt vid nästa sidvisning.
+Skapa inte tomma JSON-filer; adaptrarna skapar giltiga filer atomiskt vid första synkningen respektive första sidvisningen. Statistikfilen innehåller dagsräknare, enhetskategori och hänvisande domän eller `Direkt`. Endast den pågående dagens dagsbundna HMAC-värden sparas för unikräkning. När nästa dag börjar raderas dessa individuella hashvärden automatiskt och endast dagens aggregerade antal unika behålls. IP-adress, fullständig referrer och user-agent sparas inte. Högst 35 kalenderdagar med aggregerad statistik behålls och äldre dagsdata rensas automatiskt vid nästa sidvisning.
 
 Hela läs–ändra–skriv-operationen för `analytics.json` skyddas med ett exklusivt fillås. Den nya filen skrivs först färdigt till en temporär fil i samma katalog och ersätter därefter den tidigare filen atomiskt. Lägg katalogen i Oderlands backup och kontrollera efter första synkningen och sidvisningen att båda filerna finns. Git-pull, ny build och Passenger-omstart påverkar då inte production-datan.
 
