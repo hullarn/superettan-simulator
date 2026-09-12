@@ -45,6 +45,7 @@ previous_asset_list=''
 temporary_asset_list=''
 health_html=''
 health_assets=''
+release_list=''
 next_link=''
 rollback_link=''
 activated='false'
@@ -73,6 +74,9 @@ cleanup() {
   fi
   if [[ -n "$health_assets" && -f "$health_assets" ]]; then
     rm -f -- "$health_assets"
+  fi
+  if [[ -n "$release_list" && -f "$release_list" ]]; then
+    rm -f -- "$release_list"
   fi
   if [[ -n "$next_link" && -L "$next_link" ]]; then
     rm -f -- "$next_link"
@@ -210,21 +214,22 @@ done < "$health_assets"
 
 deployment_verified='true'
 
-# Keep the current release and several rollback candidates. Only release
-# directories with the strictly validated naming format can be removed.
-mapfile -t releases_by_age < <(
-  find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d \
-    -regextype posix-extended \
-    -regex ".*/[a-f0-9]{40}-[A-Za-z0-9_-]+" \
-    -printf '%T@ %p\n' \
-    | sort -rn \
-    | cut -d' ' -f2-
-)
-for ((index = 5; index < ${#releases_by_age[@]}; index += 1)); do
-  stale_release="${releases_by_age[$index]}"
-  if [[ "$stale_release" != "$target_release" ]]; then
+# Keep the current release and several rollback candidates. Use a regular file
+# instead of process substitution because shared-hosting shells may lack /dev/fd.
+release_list="$(mktemp "$RELEASES_DIR/.release-list.XXXXXX")"
+find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d \
+  -regextype posix-extended \
+  -regex ".*/[a-f0-9]{40}-[A-Za-z0-9_-]+" \
+  -printf '%T@ %p\n' \
+  | sort -rn \
+  | cut -d' ' -f2- > "$release_list"
+
+index=0
+while IFS= read -r stale_release; do
+  if ((index >= 5)) && [[ "$stale_release" != "$target_release" ]]; then
     rm -rf -- "$stale_release"
   fi
-done
+  ((index += 1))
+done < "$release_list"
 
 echo "Release $EXPECTED_SHA is active and its page, CSS and JavaScript passed the health check."
