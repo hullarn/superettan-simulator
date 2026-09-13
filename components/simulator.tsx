@@ -13,6 +13,32 @@ type Results = Record<string, MatchResult>;
 type SimTeam = TeamStanding & { goalDifference: number; position: number; best: number; worst: number };
 type MobilePanel = 'matches' | 'table';
 
+const MOBILE_TEAM_NAMES: Record<string, string> = {
+  'IFK Norrköping': 'Norrköping',
+  'Falkenbergs FF': 'Falkenberg',
+  'Östersund': 'Östersund',
+  'Varbergs BoIS FC': 'Varberg',
+  'IK Oddevold': 'Oddevold',
+  'Nordic United FC': 'Nordic U',
+  'Landskrona BoIS': 'Landskrona',
+  'Sandvikens IF': 'Sandviken',
+  'Östers IF': 'Öster',
+  'Helsingborgs IF': 'Helsingborg',
+  'IFK Värnamo': 'Värnamo',
+  'Ljungskile SK': 'Ljungskile',
+  'Norrby IF': 'Norrby',
+  'Örebro SK': 'Örebro',
+  'IK Brage': 'Brage',
+  'GIF Sundsvall': 'Sundsvall',
+};
+
+function ResponsiveTeamName({ name }: { name: string }) {
+  return <>
+    <span className="desktop-team-name">{displayTeamName(name)}</span>
+    <span className="mobile-team-name">{MOBILE_TEAM_NAMES[name] ?? displayTeamName(name)}</span>
+  </>;
+}
+
 const weekday = new Intl.DateTimeFormat('sv-SE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' });
 const updatedDay = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' });
 function formatFixtureDate(date: string) {
@@ -100,7 +126,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const [exactRanges, setExactRanges] = useState<PlacementRanges | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<'calculating' | 'ready' | 'error'>('calculating');
   const [hasMoreMatchesBelow, setHasMoreMatchesBelow] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('table');
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('matches');
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -129,11 +155,15 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const rounds = [...new Set(visibleFixtures.map((fixture) => fixture.round))];
   const chosenCount = upcomingFixtures.filter((fixture) => results[fixture.id]).length;
   const isFinalTable = upcomingFixtures.every((fixture) => Boolean(results[fixture.id]));
+  const selectedFocusTeam = focusTeams.size === 1 ? [...focusTeams][0] : null;
   const focusLabel = focusTeams.size === 0
     ? 'Välj fokuslag'
-    : focusTeams.size === 1
-      ? displayTeamName([...focusTeams][0])
+    : selectedFocusTeam
+      ? displayTeamName(selectedFocusTeam)
       : `${focusTeams.size} lag valda`;
+  const mobileFocusLabel = selectedFocusTeam
+    ? MOBILE_TEAM_NAMES[selectedFocusTeam] ?? displayTeamName(selectedFocusTeam)
+    : focusLabel;
 
   useEffect(() => {
     const scrollArea = matchesScrollRef.current;
@@ -240,7 +270,10 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
           <span className="data-source">Uppdaterad {lastUpdated} {data.source === 'live' ? '(API)' : '(datakopia)'}</span>
           <DropdownMenu>
             <DropdownMenuTrigger className="focus-select" aria-label={`Välj fokuslag. ${focusLabel}`}>
-              <span className="focus-select-label">{focusLabel}</span>
+              <span className="focus-select-label">
+                <span className="desktop-team-name">{focusLabel}</span>
+                <span className="mobile-team-name">{mobileFocusLabel}</span>
+              </span>
               <ChevronDown aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="focus-select-content" align="end" sideOffset={6}>
@@ -252,7 +285,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                   closeOnClick={false}
                   onCheckedChange={(checked) => toggleFocusTeam(team.name, checked)}
                 >
-                  <span className="focus-team-position">{index + 1}.</span>{' '}{displayTeamName(team.name)}
+                  <span className="focus-team-position">{index + 1}.</span>{' '}<ResponsiveTeamName name={team.name} />
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
@@ -308,7 +341,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                   const zoneDivider = team.position === 3 || team.position === 5 || team.position === 13 || team.position === 15;
                   return <tr key={team.id} className={cn(zoneDivider && 'zone-divider', flashing && (flashState.version % 2 === 0 ? 'table-row-flash-a' : 'table-row-flash-b'))}>
                     <td>{team.position}</td>
-                    <td className="team-cell"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{displayTeamName(team.name)}</span>{analysisStatus === 'ready' && team.worst <= 2 && <CheckCircle2 className="secured-icon" aria-label="Topp 2 säkrat" />}</span></td>
+                    <td className="team-cell"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate"><ResponsiveTeamName name={team.name} /></span>{analysisStatus === 'ready' && team.worst <= 2 && <CheckCircle2 className="secured-icon" aria-label="Topp 2 säkrat" />}</span></td>
                     <td>{team.played}</td><td>{team.won}</td><td>{team.drawn}</td><td>{team.lost}</td><td>{team.goalsFor}–{team.goalsAgainst}</td><td>{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}</td><td className="points-cell">{team.points}</td><td className={cn('placement-cell', analysisStatus === 'calculating' && 'opacity-50')}>{placementLabel(team, isFinalTable)}</td>
                   </tr>;
                 })}
@@ -346,9 +379,9 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                     return <article key={fixture.id} className="fixture-row">
                       <div className="fixture-date">{formatFixtureDate(fixture.date)} · {fixture.time}</div>
                       <div className="fixture-teams">
-                        <span className="fixture-team-home">{displayTeamName(fixture.home)}</span>
+                        <span className="fixture-team-home"><ResponsiveTeamName name={fixture.home} /></span>
                         <span className="fixture-separator">–</span>
-                        <span className="fixture-team-away">{displayTeamName(fixture.away)}</span>
+                        <span className="fixture-team-away"><ResponsiveTeamName name={fixture.away} /></span>
                       </div>
                       <div className="outcome-buttons">
                         {(['1', 'X', '2'] as const).map((value) => <Button key={value} size="sm" variant="outline" className={cn('outcome-button', outcome(result) === value && 'is-selected')} onClick={() => setQuickResult(fixture, value)} aria-label={`${displayTeamName(fixture.home)} mot ${displayTeamName(fixture.away)}: ${value}`}>{value}</Button>)}
