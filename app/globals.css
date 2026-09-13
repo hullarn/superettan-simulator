@@ -910,16 +910,61 @@ button, input, select { font: inherit; }
   .table-scroll { margin-inline: -4px; }
   .table-panel { min-height: 0; padding-block: 18px; }
   .table-panel .panel-header { min-height: 38px; }
-  .table-panel .table-scroll { flex: 1; margin-inline: -2px; overflow-y: hidden; }
-  .table-panel .standings-table { height: calc(100% - 10px); min-height: 418px; }
+  .table-panel .table-scroll {
+    flex: 1;
+    margin-inline: -2px;
+    overflow-y: hidden;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  }
+  .table-panel .standings-table { height: calc(100% - 10px); min-width: 460px; min-height: 418px; }
   .table-panel .standings-table thead { height: 34px; }
   .table-panel .standings-table td {
     height: 24px;
     padding-top: 0;
     padding-bottom: 0;
   }
+  .table-panel .standings-table th:nth-child(1) { width: 5%; }
+  .table-panel .standings-table th:nth-child(2) { width: 29%; }
+  .table-panel .standings-table th:nth-child(3) { width: 7%; }
+  .table-panel .standings-table th:nth-child(4) { width: 4.5%; }
+  .table-panel .standings-table th:nth-child(5) { width: 4%; }
+  .table-panel .standings-table th:nth-child(6) { width: 3.8%; }
+  .table-panel .standings-table th:nth-child(7) { width: 15.7%; }
+  .table-panel .standings-table th:nth-child(9) { width: 8.3%; }
+  .table-panel .standings-table th:nth-child(10) { width: 22.7%; }
+  .table-panel .standings-table th:nth-child(8),
+  .table-panel .standings-table td:nth-child(8) { display: none; }
+  .table-panel .standings-table th:nth-child(3),
+  .table-panel .standings-table td:nth-child(3),
+  .table-panel .standings-table th:nth-child(4),
+  .table-panel .standings-table td:nth-child(4),
+  .table-panel .standings-table th:nth-child(5),
+  .table-panel .standings-table td:nth-child(5),
+  .table-panel .standings-table th:nth-child(6),
+  .table-panel .standings-table td:nth-child(6),
+  .table-panel .standings-table th:nth-child(7),
+  .table-panel .standings-table td:nth-child(7),
+  .table-panel .standings-table th:nth-child(9),
+  .table-panel .standings-table td:nth-child(9) {
+    padding-right: 3px;
+    padding-left: 3px;
+    text-align: center;
+  }
+  .table-panel .standings-table th:nth-child(4),
+  .table-panel .standings-table td:nth-child(4),
+  .table-panel .standings-table th:nth-child(5),
+  .table-panel .standings-table td:nth-child(5),
+  .table-panel .standings-table th:nth-child(6),
+  .table-panel .standings-table td:nth-child(6) { padding-inline: 1px; }
+  .table-panel .standings-table th:nth-child(10),
+  .table-panel .standings-table td:nth-child(10) {
+    padding-right: 4px;
+    padding-left: 7px;
+    text-align: left;
+  }
   .table-panel .table-note { display: none; }
-  .matches-panel { min-height: 720px; padding-bottom: 34px; }
+  .matches-panel { min-height: 720px; padding-right: 15px; padding-bottom: 34px; }
   .workspace-panel.mobile-panel-inactive { display: none; }
   .mobile-panel-tabs {
     position: fixed;
@@ -953,18 +998,18 @@ button, input, select { font: inherit; }
   .mobile-panel-tab.is-active { background: #f2e8c4; color: #26272e; }
   .mobile-panel-tab:focus-visible { outline: 2px solid #f5f3e8; outline-offset: -4px; }
   .fixture-row {
-    min-height: 90px;
+    min-height: 85px;
     grid-template-columns: minmax(0, 1fr) 82px;
     grid-template-rows: auto auto auto;
     align-items: center;
     column-gap: 8px;
     row-gap: 6px;
-    padding: 10.5px 0 8px;
+    padding: 10.5px 0 5.5px;
   }
   .fixture-date {
     grid-column: 1;
     grid-row: 3;
-    margin-top: -20px;
+    margin-top: -24px;
     font-size: 9.5px;
   }
   .fixture-teams {
@@ -991,10 +1036,13 @@ button, input, select { font: inherit; }
     text-overflow: clip;
     white-space: normal;
   }
-  .outcome-buttons { grid-column: 2; grid-row: 1; transform: translateY(2px); }
-  .score-inputs { grid-column: 2; grid-row: 2; transform: translateY(3px); }
+  .outcome-buttons { grid-column: 2; grid-row: 1; transform: translate(-4px, 2px); }
+  .score-inputs { grid-column: 2; grid-row: 2; transform: translate(-4px, 1px); }
   .fixture-list { padding-inline: 2px; }
-  .round-heading { padding-inline: 10px; }
+  .round-heading {
+    padding-inline: 10px;
+    box-shadow: 0 -10px 0 10px #f4e6b6, 0 0 0 4px #f4e6b6;
+  }
   .admin-shell { padding: 12px; }
   .admin-card { border-radius: 28px; padding: 28px 22px; }
   .admin-header, .admin-title-row { flex-direction: column; }
