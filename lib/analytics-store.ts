@@ -30,6 +30,21 @@ export type AnalyticsRequestData = {
   host: string | null;
 };
 
+export type AnalyticsPageViewRequest = AnalyticsRequestData & {
+  queryRsc: string | string[] | undefined;
+  rsc: string | null;
+  nextRouterPrefetch: string | null;
+  nextRouterSegmentPrefetch: string | null;
+  nextRouterStateTree: string | null;
+  xMiddlewarePrefetch: string | null;
+  xNextjsData: string | null;
+  nextAction: string | null;
+  purpose: string | null;
+  secPurpose: string | null;
+  accept: string | null;
+  secFetchDest: string | null;
+};
+
 export type AnalyticsSummary = {
   configured: boolean;
   today: { visits: number; unique: number };
@@ -101,9 +116,7 @@ const AUTOMATED_USER_AGENT_MARKERS = [
   'claude-searchbot',
   'anthropic-ai',
   'perplexitybot',
-  'crawler',
-  'spider',
-  'scraper',
+  'fossickbot',
   'headlesschrome',
   'phantomjs',
   'puppeteer',
@@ -129,6 +142,24 @@ const AUTOMATED_USER_AGENT_MARKERS = [
   'aiohttp/',
   'go-http-client/',
   'libwww-perl/',
+] as const;
+const GENERIC_AUTOMATION_USER_AGENT_MARKERS = [
+  'bot',
+  'crawler',
+  'spider',
+  'scraper',
+  'scanner',
+  'monitor',
+  'preview',
+  'fetcher',
+  'probe',
+  'checker',
+  'validator',
+  'indexer',
+  'archiver',
+  'headless',
+  'synthetic',
+  'uptime',
 ] as const;
 const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Europe/Stockholm',
@@ -320,9 +351,56 @@ async function acquireFileLock(filePath: string) {
   return null;
 }
 
-function clientIp(request: AnalyticsRequestData) {
-  const forwarded = request.forwardedFor?.split(',')[0]?.trim();
-  return (forwarded || request.realIp?.trim() || '').slice(0, 128) || null;
+function normalizeIpv4(value: string) {
+  const parts = value.split('.');
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part) || Number(part) > 255)) return null;
+  return parts.map((part) => String(Number(part))).join('.');
+}
+
+function normalizeIpv6(value: string) {
+  if (!value.includes(':') || value.includes('%')) return null;
+  try {
+    const hostname = new URL(`http://[${value}]/`).hostname;
+    if (!hostname.startsWith('[') || !hostname.endsWith(']')) return null;
+    const normalized = hostname.slice(1, -1).toLowerCase();
+    const ipv4Mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(normalized);
+    if (!ipv4Mapped) return normalized;
+    const high = Number.parseInt(ipv4Mapped[1], 16);
+    const low = Number.parseInt(ipv4Mapped[2], 16);
+    return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeIpAddress(value: string) {
+  let candidate = value.trim();
+  if (candidate.startsWith('"') && candidate.endsWith('"')) candidate = candidate.slice(1, -1).trim();
+
+  const bracketed = /^\[([^\]]+)](?::(\d{1,5}))?$/.exec(candidate);
+  if (bracketed) {
+    if (bracketed[2] && Number(bracketed[2]) > 65_535) return null;
+    return normalizeIpv6(bracketed[1]);
+  }
+
+  const ipv4 = normalizeIpv4(candidate);
+  if (ipv4) return ipv4;
+
+  const ipv4WithPort = /^(.+):(\d{1,5})$/.exec(candidate);
+  if (ipv4WithPort && Number(ipv4WithPort[2]) <= 65_535) {
+    const normalized = normalizeIpv4(ipv4WithPort[1]);
+    if (normalized) return normalized;
+  }
+
+  return normalizeIpv6(candidate);
+}
+
+export function normalizeClientIp(forwardedFor: string | null, realIp: string | null) {
+  for (const candidate of forwardedFor?.split(',') ?? []) {
+    const normalized = normalizeIpAddress(candidate);
+    if (normalized) return normalized;
+  }
+  return realIp ? normalizeIpAddress(realIp) : null;
 }
 
 function deviceKind(request: AnalyticsRequestData): DeviceKind {
@@ -373,10 +451,36 @@ export function isAnalyticsConfigured() {
 export function isAutomatedUserAgent(userAgent: string | null) {
   const candidate = userAgent?.trim().toLowerCase();
   if (!candidate) return true;
-  return AUTOMATED_USER_AGENT_MARKERS.some((marker) => candidate.includes(marker));
+  return AUTOMATED_USER_AGENT_MARKERS.some((marker) => candidate.includes(marker))
+    || GENERIC_AUTOMATION_USER_AGENT_MARKERS.some((marker) => candidate.includes(marker));
 }
 
-export async function recordAnalyticsVisit(request: AnalyticsRequestData) {
+function headerIsPresent(value: string | null) {
+  return value !== null;
+}
+
+export function isAnalyticsPageView(request: AnalyticsPageViewRequest) {
+  if (request.queryRsc !== undefined) return false;
+  if ([
+    request.rsc,
+    request.nextRouterPrefetch,
+    request.nextRouterSegmentPrefetch,
+    request.nextRouterStateTree,
+    request.xMiddlewarePrefetch,
+    request.xNextjsData,
+    request.nextAction,
+  ].some(headerIsPresent)) return false;
+
+  const purpose = `${request.purpose ?? ''} ${request.secPurpose ?? ''}`.toLowerCase();
+  if (/(?:^|[\s,;])prefetch(?:$|[\s,;])/.test(purpose)) return false;
+  if (request.accept?.toLowerCase().includes('text/x-component')) return false;
+
+  const fetchDestination = request.secFetchDest?.trim().toLowerCase();
+  return !fetchDestination || fetchDestination === 'document';
+}
+
+export async function recordAnalyticsPageView(request: AnalyticsPageViewRequest) {
+  if (!isAnalyticsPageView(request)) return;
   if (isAutomatedUserAgent(request.userAgent)) return;
 
   let release: (() => Promise<void>) | null = null;
@@ -400,7 +504,7 @@ export async function recordAnalyticsVisit(request: AnalyticsRequestData) {
     };
     const device = deviceKind(request);
     const source = trafficSource(request);
-    const visitor = await visitorHash(configuration.secret, date, clientIp(request));
+    const visitor = await visitorHash(configuration.secret, date, normalizeClientIp(request.forwardedFor, request.realIp));
 
     day.visits += 1;
     day.devices[device] += 1;
@@ -417,6 +521,18 @@ export async function recordAnalyticsVisit(request: AnalyticsRequestData) {
     // Statistik är sekundär och får aldrig påverka sidans svar.
   } finally {
     await release?.().catch(() => undefined);
+  }
+}
+
+export async function resetAnalyticsFile(filePath: string) {
+  const absolutePath = absoluteFilePath(filePath);
+  const release = await acquireFileLock(absolutePath);
+  if (!release) throw new Error('Statistikfilen kunde inte låsas för nollställning.');
+
+  try {
+    await saveState(absolutePath, emptyState());
+  } finally {
+    await release();
   }
 }
 
