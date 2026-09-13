@@ -328,6 +328,17 @@ button, input, select { font: inherit; }
   padding: 0 !important;
   font-size: 11px !important;
   font-weight: 600 !important;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 0s linear 180ms;
+}
+
+.reset-button.is-visible {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 
 .reset-button:hover { background: transparent !important; opacity: 0.65; }
@@ -891,8 +902,11 @@ button, input, select { font: inherit; }
 
 @media (max-width: 760px) {
   .app-shell {
+    height: 100svh;
+    min-height: 100svh;
+    overflow-y: hidden;
     padding-right: 12px;
-    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+    padding-bottom: 24px;
     padding-left: 12px;
   }
   .app-header {
@@ -904,12 +918,13 @@ button, input, select { font: inherit; }
   .brand-title { font-size: clamp(18px, 6vw, 23px); white-space: nowrap; }
   .brand-season, .data-source { display: none; }
   .focus-select { width: min(48vw, 230px); max-width: 100%; }
-  .workspace-panel { min-height: 0; border-radius: 19px; padding: 22px 22px 26px; }
+  .workspace { min-height: 0; gap: 0; }
+  .workspace-panel { min-height: 0; border-radius: 0 0 19px 19px; padding: 22px 22px 26px; }
   .panel-header { min-height: 46px; padding-inline: 2px; }
   .panel-title { font-size: 18px; }
   .table-scroll { margin-inline: -4px; }
-  .table-panel { min-height: 0; padding-block: 18px; }
-  .table-panel .panel-header { min-height: 38px; }
+  .table-panel { min-height: 0; padding-top: 0; padding-bottom: 18px; }
+  .table-panel .panel-header { display: none; }
   .table-panel .table-scroll {
     flex: 1;
     margin-inline: -2px;
@@ -964,39 +979,48 @@ button, input, select { font: inherit; }
     text-align: left;
   }
   .table-panel .table-note { display: none; }
-  .matches-panel { min-height: 720px; padding-right: 15px; padding-bottom: 34px; }
+  .matches-panel { min-height: 0; padding-top: 0; padding-right: 15px; padding-bottom: 34px; }
+  .matches-panel .matches-scroll { max-height: none; }
+  .matches-panel .panel-header {
+    min-height: 38px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .matches-panel .panel-title { display: none; }
   .workspace-panel.mobile-panel-inactive { display: none; }
   .mobile-panel-tabs {
-    position: fixed;
-    z-index: 50;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    position: relative;
+    z-index: 3;
     display: block;
-    border-top: 1px solid #4b4c53;
-    background: #26272e;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    width: min(100%, 1400px);
+    margin: 0 auto;
   }
   .mobile-panel-tabs > div {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    border: 1px solid #d8cfae;
   }
   .mobile-panel-tab {
-    height: 46px;
+    position: relative;
+    height: 50px;
     border: 0;
-    background: transparent;
-    color: #f2e8c4;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    border-radius: 19px 19px 0 0;
+    color: rgb(32 33 41 / 58%);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
     cursor: pointer;
     touch-action: manipulation;
   }
-  .mobile-panel-tab + .mobile-panel-tab { border-left: 1px solid #d8cfae; }
-  .mobile-panel-tab.is-active { background: #f2e8c4; color: #26272e; }
-  .mobile-panel-tab:focus-visible { outline: 2px solid #f5f3e8; outline-offset: -4px; }
+  .mobile-panel-tab:first-child { background: #f4e6b6; }
+  .mobile-panel-tab:last-child { background: #f3f3eb; }
+  .mobile-panel-tab + .mobile-panel-tab { border-left: 1px solid #202129; }
+  .mobile-panel-tab:not(.is-active) {
+    color: rgb(32 33 41 / 30%);
+    box-shadow: inset 0 -8px 8px -10px rgb(32 33 41 / 75%);
+  }
+  .mobile-panel-tab.is-active { z-index: 1; color: #202129; box-shadow: none; }
+  .mobile-panel-tab:focus-visible { outline: 2px solid #202129; outline-offset: -4px; }
   .fixture-row {
     min-height: 85px;
     grid-template-columns: minmax(0, 1fr) 82px;

@@ -100,7 +100,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const [exactRanges, setExactRanges] = useState<PlacementRanges | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<'calculating' | 'ready' | 'error'>('calculating');
   const [hasMoreMatchesBelow, setHasMoreMatchesBelow] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('matches');
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('table');
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -260,6 +260,31 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
         </div>
       </header>
 
+      <nav className="mobile-panel-tabs" aria-label="Välj innehållspanel">
+        <div role="tablist" aria-label="Tabell och matcher">
+          <button
+            type="button"
+            role="tab"
+            className={cn('mobile-panel-tab', mobilePanel === 'matches' && 'is-active')}
+            aria-selected={mobilePanel === 'matches'}
+            aria-controls="matches-panel"
+            onClick={() => setMobilePanel('matches')}
+          >
+            Matcher
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={cn('mobile-panel-tab', mobilePanel === 'table' && 'is-active')}
+            aria-selected={mobilePanel === 'table'}
+            aria-controls="table-panel"
+            onClick={() => setMobilePanel('table')}
+          >
+            Tabell
+          </button>
+        </div>
+      </nav>
+
       <div className="workspace">
         <section
           id="table-panel"
@@ -267,7 +292,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
           aria-labelledby="table-title"
         >
           <div className="panel-header">
-            <h2 id="table-title" className="panel-title">Simulerad tabell</h2>
+            <h2 id="table-title" className="panel-title">Tabell</h2>
           </div>
 
           <div className="table-scroll">
@@ -301,7 +326,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
         >
           <div className="panel-header">
             <h2 id="matches-title" className="panel-title">Matcher</h2>
-            <Button variant="ghost" size="sm" className="reset-button" onClick={resetSimulation} disabled={!Object.keys(results).length} aria-label={`Återställ ${chosenCount} valda matcher`}>
+            <Button variant="ghost" size="sm" className={cn('reset-button', chosenCount > 0 && 'is-visible')} onClick={resetSimulation} disabled={!Object.keys(results).length} aria-label={`Återställ ${chosenCount} valda matcher`}>
               Återställ <RotateCcw />
             </Button>
           </div>
@@ -341,31 +366,6 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
           </div>
         </section>
       </div>
-
-      <nav className="mobile-panel-tabs" aria-label="Välj innehållspanel">
-        <div role="tablist" aria-label="Matcher och tabell">
-          <button
-            type="button"
-            role="tab"
-            className={cn('mobile-panel-tab', mobilePanel === 'matches' && 'is-active')}
-            aria-selected={mobilePanel === 'matches'}
-            aria-controls="matches-panel"
-            onClick={() => setMobilePanel('matches')}
-          >
-            Matcher
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={cn('mobile-panel-tab', mobilePanel === 'table' && 'is-active')}
-            aria-selected={mobilePanel === 'table'}
-            aria-controls="table-panel"
-            onClick={() => setMobilePanel('table')}
-          >
-            Tabell
-          </button>
-        </div>
-      </nav>
 
     </main>
   );
