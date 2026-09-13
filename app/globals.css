@@ -910,7 +910,7 @@ button, input, select { font: inherit; }
   .table-scroll { margin-inline: -4px; }
   .table-panel { min-height: 0; padding-block: 18px; }
   .table-panel .panel-header { min-height: 38px; }
-  .table-panel .table-scroll { flex: 1; overflow-y: hidden; }
+  .table-panel .table-scroll { flex: 1; margin-inline: -2px; overflow-y: hidden; }
   .table-panel .standings-table { height: calc(100% - 10px); min-height: 418px; }
   .table-panel .standings-table thead { height: 34px; }
   .table-panel .standings-table td {
@@ -958,44 +958,41 @@ button, input, select { font: inherit; }
     grid-template-rows: auto auto auto;
     align-items: center;
     column-gap: 8px;
-    row-gap: 2px;
-    padding: 8px 0;
+    row-gap: 6px;
+    padding: 10.5px 0 8px;
   }
   .fixture-date {
     grid-column: 1;
     grid-row: 3;
-    margin-top: 4px;
+    margin-top: -20px;
     font-size: 9.5px;
   }
   .fixture-teams {
+    display: block;
     grid-column: 1;
     grid-row: 1 / span 2;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    justify-content: start;
-    gap: 2px 5px;
+    align-self: stretch;
     font-size: var(--team-name-size);
     line-height: 1.25;
     transform: none;
   }
   .fixture-team-home {
-    grid-column: 1;
-    grid-row: 1;
+    display: inline;
     overflow: visible;
     text-align: left;
     text-overflow: clip;
     white-space: normal;
   }
-  .fixture-separator { grid-column: 2; grid-row: 1; }
+  .fixture-separator { display: inline; margin-left: 5px; }
   .fixture-team-away {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    display: block;
+    margin-top: 1px;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
   }
-  .outcome-buttons { grid-column: 2; grid-row: 1; }
-  .score-inputs { grid-column: 2; grid-row: 2; }
+  .outcome-buttons { grid-column: 2; grid-row: 1; transform: translateY(2px); }
+  .score-inputs { grid-column: 2; grid-row: 2; transform: translateY(3px); }
   .fixture-list { padding-inline: 2px; }
   .round-heading { padding-inline: 10px; }
   .admin-shell { padding: 12px; }
