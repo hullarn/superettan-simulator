@@ -11,6 +11,7 @@ import { displayTeamName, isFinishedFixture, type CompetitionData, type Fixture,
 type MatchResult = { home: number; away: number };
 type Results = Record<string, MatchResult>;
 type SimTeam = TeamStanding & { goalDifference: number; position: number; best: number; worst: number };
+type MobilePanel = 'matches' | 'table';
 
 const weekday = new Intl.DateTimeFormat('sv-SE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' });
 const updatedDay = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short', timeZone: 'Europe/Stockholm' });
@@ -99,6 +100,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const [exactRanges, setExactRanges] = useState<PlacementRanges | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<'calculating' | 'ready' | 'error'>('calculating');
   const [hasMoreMatchesBelow, setHasMoreMatchesBelow] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('matches');
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -259,7 +261,11 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
       </header>
 
       <div className="workspace">
-        <section className="workspace-panel table-panel" aria-labelledby="table-title">
+        <section
+          id="table-panel"
+          className={cn('workspace-panel table-panel', mobilePanel !== 'table' && 'mobile-panel-inactive')}
+          aria-labelledby="table-title"
+        >
           <div className="panel-header">
             <h2 id="table-title" className="panel-title">Simulerad tabell</h2>
           </div>
@@ -288,7 +294,11 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
           <p className="table-note">Möjlig placering analyserar de återstående matchmötena med 1–0, 0–0 och 0–1 samt kontrollerar om poäng och målskillnad teoretiskt kan hämtas in.</p>
         </section>
 
-        <section className="workspace-panel matches-panel" aria-labelledby="matches-title">
+        <section
+          id="matches-panel"
+          className={cn('workspace-panel matches-panel', mobilePanel !== 'matches' && 'mobile-panel-inactive')}
+          aria-labelledby="matches-title"
+        >
           <div className="panel-header">
             <h2 id="matches-title" className="panel-title">Matcher</h2>
             <Button variant="ghost" size="sm" className="reset-button" onClick={resetSimulation} disabled={!Object.keys(results).length} aria-label={`Återställ ${chosenCount} valda matcher`}>
@@ -331,6 +341,31 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
           </div>
         </section>
       </div>
+
+      <nav className="mobile-panel-tabs" aria-label="Välj innehållspanel">
+        <div role="tablist" aria-label="Matcher och tabell">
+          <button
+            type="button"
+            role="tab"
+            className={cn('mobile-panel-tab', mobilePanel === 'matches' && 'is-active')}
+            aria-selected={mobilePanel === 'matches'}
+            aria-controls="matches-panel"
+            onClick={() => setMobilePanel('matches')}
+          >
+            Matcher
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={cn('mobile-panel-tab', mobilePanel === 'table' && 'is-active')}
+            aria-selected={mobilePanel === 'table'}
+            aria-controls="table-panel"
+            onClick={() => setMobilePanel('table')}
+          >
+            Tabell
+          </button>
+        </div>
+      </nav>
 
     </main>
   );
