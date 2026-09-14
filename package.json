@@ -10,8 +10,6 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "test": "node --test tests/*.test.mjs",
-    "analytics:reset": "node scripts/reset-analytics.mjs",
     "build:sites": "vinext build",
     "lint": "oxlint",
     "format": "oxfmt"

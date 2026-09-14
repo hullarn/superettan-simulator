@@ -49,11 +49,9 @@ ADMIN_PASSWORD=<unikt-starkt-production-lösenord>
 CRON_SECRET=<unik-slumpsträng-med-minst-32-tecken>
 DATA_STORE=file
 DATA_FILE_PATH=/home/CPANEL_USER/slutspurten-data/superettan-state.json
-ANALYTICS_SECRET=<unik-slumpsträng-med-minst-32-tecken>
-ANALYTICS_FILE_PATH=/home/CPANEL_USER/slutspurten-data/analytics.json
 ```
 
-Ersätt `CPANEL_USER` med kontots riktiga cPanel-användarnamn. På det nuvarande kontot är statistikens fullständiga sökväg `/home/psdnahem/slutspurten-data/analytics.json`. `ANALYTICS_SECRET` ska vara en egen hemlighet och får aldrig läggas i koden eller Git. `GOAL_API_LEAGUE_ID` och `GOAL_API_SEASON` har fungerande standardvärden i koden men ska anges explicit i production. Sätt inte `PORT`; Passenger tilldelar den. Sätt inte `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `KV_REST_API_URL` eller `KV_REST_API_TOKEN` på Oderland.
+Ersätt `CPANEL_USER` med kontots riktiga cPanel-användarnamn. `GOAL_API_LEAGUE_ID` och `GOAL_API_SEASON` har fungerande standardvärden i koden men ska anges explicit i production. Sätt inte `PORT`; Passenger tilldelar den. Sätt inte `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `KV_REST_API_URL` eller `KV_REST_API_TOKEN` på Oderland.
 
 ### Vercel preview/test
 
@@ -71,11 +69,13 @@ UPSTASH_REDIS_REST_TOKEN=<test-redis-token>
 
 Vercel kan i stället tillhandahålla motsvarande `KV_REST_API_URL` och `KV_REST_API_TOKEN`; använd ett komplett par, inte blandade värden. Lämna `DATA_STORE` och `DATA_FILE_PATH` tomma på Vercel. Upstash-databasen ska vara en testdatabas och får inte användas av Oderland-production.
 
-Lämna även `ANALYTICS_SECRET` och `ANALYTICS_FILE_PATH` tomma på Vercel. Den filbaserade besöksstatistiken är avsiktligt avstängd där eftersom Vercels filsystem inte är beständigt.
-
 ### Lokal utveckling
 
-Kopiera `.env.example` till `.env.local`. Utan Redis-variabler använder utvecklingsläget automatiskt `.data/superettan-state.json`. Sätt `ANALYTICS_SECRET` till ett lokalt testvärde för att aktivera statistik i `.data/analytics.json`; `ANALYTICS_FILE_PATH` behöver då inte anges. Sätt lokala/testvärden för API, admin och cron; återanvänd inte production-hemligheter.
+Kopiera `.env.example` till `.env.local`. Utan Redis-variabler använder utvecklingsläget automatiskt `.data/superettan-state.json`. Sätt lokala/testvärden för API, admin och cron; återanvänd inte production-hemligheter.
+
+## Besöksstatistik
+
+Umami Cloud-scriptet läggs in globalt i production-builden och använder website ID `52248e40-a565-4f89-ad1d-7b1bd62fecaf`. Trackern är begränsad med `data-domains="slutspurten.se"`, så localhost, Vercel och andra värdnamn registrerar ingen statistik. Umami hanterar vanlig sidvisning och client-side-navigation automatiskt; projektet ska inte skicka manuella pageview-events. Inga analytics-specifika environment variables eller lokala statistikfiler används.
 
 ## Beständig datalagring
 
@@ -83,7 +83,6 @@ Production-filen ska ligga utanför application root och Git-repot:
 
 ```text
 /home/CPANEL_USER/slutspurten-data/superettan-state.json
-/home/CPANEL_USER/slutspurten-data/analytics.json
 ```
 
 Skapa katalogen med rättigheter endast för cPanel-användaren:
@@ -93,9 +92,7 @@ mkdir -p /home/CPANEL_USER/slutspurten-data
 chmod 700 /home/CPANEL_USER/slutspurten-data
 ```
 
-Skapa inte tomma JSON-filer; adaptrarna skapar giltiga filer atomiskt vid första synkningen respektive första sidvisningen. Statistikfilen innehåller dagsräknare, enhetskategori och hänvisande domän eller `Direkt`. Endast den pågående dagens dagsbundna HMAC-värden sparas för unikräkning. När nästa dag börjar raderas dessa individuella hashvärden automatiskt och endast dagens aggregerade antal unika behålls. IP-adress, fullständig referrer och user-agent sparas inte. Högst 35 kalenderdagar med aggregerad statistik behålls och äldre dagsdata rensas automatiskt vid nästa sidvisning.
-
-Hela läs–ändra–skriv-operationen för `analytics.json` skyddas med ett exklusivt fillås. Den nya filen skrivs först färdigt till en temporär fil i samma katalog och ersätter därefter den tidigare filen atomiskt. Lägg katalogen i Oderlands backup och kontrollera efter första synkningen och sidvisningen att båda filerna finns. Git-pull, ny build och Passenger-omstart påverkar då inte production-datan.
+Skapa inte en tom JSON-fil; adaptern skapar en giltig fil atomiskt vid första synkningen. Lägg katalogen i Oderlands backup och kontrollera efter första synkningen att filen finns. Git-pull, ny build och Passenger-omstart påverkar då inte production-datan.
 
 ## Cron och synkning
 
@@ -196,9 +193,7 @@ Logga sedan in på `/admin`, kör en manuell synk och kontrollera:
 
 ```bash
 test -s /home/CPANEL_USER/slutspurten-data/superettan-state.json
-test -s /home/CPANEL_USER/slutspurten-data/analytics.json
 chmod 600 /home/CPANEL_USER/slutspurten-data/superettan-state.json
-chmod 600 /home/CPANEL_USER/slutspurten-data/analytics.json
 tail -n 100 /home/CPANEL_USER/logs/slutspurten-passenger.log
 ```
 

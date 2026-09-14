@@ -775,104 +775,6 @@ button, input, select { font: inherit; }
   line-height: 1.4;
 }
 
-.admin-analytics {
-  margin-top: 40px;
-  border-top: 1px solid #c9c7bb;
-  padding-top: 32px;
-}
-
-.admin-section-heading h2 {
-  margin: 0;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 20px;
-  font-style: italic;
-  font-weight: 500;
-}
-
-.admin-section-heading p {
-  margin: 7px 0 0;
-  color: #696963;
-  font-size: 11px;
-}
-
-.admin-analytics-periods {
-  display: grid;
-  margin-top: 22px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.admin-analytics-breakdown {
-  display: grid;
-  margin-top: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.admin-analytics-breakdown > article {
-  min-width: 0;
-  border: 1px solid #d3d1c7;
-  border-radius: 14px;
-  padding: 16px 18px;
-}
-
-.admin-analytics-breakdown h3 {
-  margin: 0 0 11px;
-  color: #686862;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.admin-analytics-breakdown dl { margin: 0; }
-
-.admin-analytics-breakdown dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  border-top: 1px solid #dedcd2;
-  padding: 7px 0;
-}
-
-.admin-analytics-breakdown dl > div:first-child { border-top: 0; }
-.admin-analytics-breakdown dt { overflow-wrap: anywhere; font-size: 11px; }
-.admin-analytics-breakdown dd {
-  margin: 0;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 10px;
-}
-
-.admin-analytics-breakdown p { margin: 0; color: #71716b; font-size: 11px; }
-
-.admin-analytics-days {
-  margin-top: 16px;
-  border-top: 1px solid #d3d1c7;
-  border-bottom: 1px solid #d3d1c7;
-}
-
-.admin-analytics-days summary {
-  padding: 13px 2px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.admin-analytics-table-scroll { overflow-x: auto; padding-bottom: 10px; }
-.admin-analytics-days table { width: 100%; border-collapse: collapse; }
-.admin-analytics-days th,
-.admin-analytics-days td {
-  border-top: 1px solid #dedcd2;
-  padding: 8px 4px;
-  font-size: 10px;
-  text-align: right;
-}
-
-.admin-analytics-days th:first-child,
-.admin-analytics-days td:first-child { text-align: left; }
-.admin-analytics-days th { color: #686862; font-size: 9px; text-transform: uppercase; }
-.admin-analytics-days td { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
-
 @media (min-width: 1180px) {
   .app-shell { height: 100svh; }
   .matches-panel { order: -1; }
@@ -1080,7 +982,6 @@ button, input, select { font: inherit; }
   .admin-sync-button { width: 100%; justify-content: center; }
   .admin-status-grid { grid-template-columns: 1fr; }
   .admin-details > div { grid-template-columns: 1fr; gap: 5px; padding-block: 11px; }
-  .admin-analytics-periods, .admin-analytics-breakdown { grid-template-columns: 1fr; }
 }
 
 @layer base { * { @apply border-border outline-ring/50; } }
