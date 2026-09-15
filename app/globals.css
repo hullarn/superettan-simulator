@@ -344,7 +344,7 @@ button, input, select { font: inherit; }
 
 .reset-button:hover { background: transparent !important; opacity: 0.65; }
 .reset-button svg { width: 20px !important; height: 20px !important; stroke-width: 1.5; }
-.score-visibility-button, .fixture-score-toggle, .fixture-date-compact { display: none; }
+.score-visibility-button, .fixture-row-toggle-surface, .fixture-score-toggle, .fixture-date-compact { display: none; }
 
 .table-scroll { min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; }
 
@@ -425,13 +425,14 @@ button, input, select { font: inherit; }
 
 .matches-scroll {
   --matches-bottom-fade: 0;
+  --matches-bottom-fade-height: 64px;
   min-height: 0;
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 64px), rgb(0 0 0 / calc(1 - var(--matches-bottom-fade))) 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 64px), rgb(0 0 0 / calc(1 - var(--matches-bottom-fade))) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--matches-bottom-fade-height)), rgb(0 0 0 / calc(1 - var(--matches-bottom-fade))) 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--matches-bottom-fade-height)), rgb(0 0 0 / calc(1 - var(--matches-bottom-fade))) 100%);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
@@ -886,7 +887,7 @@ button, input, select { font: inherit; }
   }
   .table-panel .table-note { display: none; }
   .matches-panel { min-height: 0; padding-top: 0; padding-right: 7px; padding-bottom: 34px; }
-  .matches-panel .matches-scroll { max-height: none; }
+  .matches-panel .matches-scroll { --matches-bottom-fade-height: 44px; max-height: none; }
   .matches-panel .panel-header {
     min-height: 38px;
     align-items: center;
@@ -956,15 +957,36 @@ button, input, select { font: inherit; }
     padding-top: 8px;
     padding-bottom: 6px;
   }
+  .fixture-row-toggle-surface {
+    position: absolute;
+    z-index: 0;
+    display: block;
+    border: 0;
+    background: transparent;
+    inset: 0;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .fixture-row-toggle-surface:focus-visible {
+    border-radius: 7px;
+    outline: 1px solid rgb(32 33 41 / 45%);
+    outline-offset: -2px;
+  }
   .fixture-date {
+    position: relative;
+    z-index: 1;
     grid-column: 1;
     grid-row: 1;
     align-self: center;
     font-size: 8.5px;
+    pointer-events: none;
   }
   .fixture-date-full { display: none; }
   .fixture-date-compact { display: inline; }
   .fixture-teams {
+    position: relative;
+    z-index: 1;
     display: block;
     grid-column: 2;
     grid-row: 1;
@@ -975,6 +997,7 @@ button, input, select { font: inherit; }
     text-overflow: ellipsis;
     transform: none;
     white-space: nowrap;
+    pointer-events: none;
   }
   .fixture-team-home {
     display: inline;
@@ -990,11 +1013,13 @@ button, input, select { font: inherit; }
     text-overflow: clip;
     white-space: nowrap;
   }
-  .outcome-buttons { grid-column: 3; grid-row: 1; transform: none; }
-  .score-inputs { display: none; grid-column: 3; grid-row: 2; transform: none; }
+  .outcome-buttons { position: relative; z-index: 2; grid-column: 3; grid-row: 1; transform: none; }
+  .score-inputs { position: relative; z-index: 2; display: none; grid-column: 3; grid-row: 2; transform: none; }
   .fixture-row.is-score-expanded .score-inputs { display: flex; }
   .fixture-score-toggle {
+    position: relative;
     display: flex;
+    z-index: 2;
     width: 16px;
     height: 27px;
     grid-column: 4;

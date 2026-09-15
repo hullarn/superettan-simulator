@@ -409,6 +409,13 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                     const result = results[fixture.id];
                     const scoreExpanded = expandedScoreFixtures.has(fixture.id);
                     return <article key={fixture.id} className={cn('fixture-row', scoreExpanded && 'is-score-expanded')}>
+                      <button
+                        type="button"
+                        className="fixture-row-toggle-surface"
+                        aria-expanded={scoreExpanded}
+                        aria-label={`${scoreExpanded ? 'Dölj' : 'Visa'} mål för ${displayTeamName(fixture.home)} mot ${displayTeamName(fixture.away)}`}
+                        onClick={() => toggleFixtureScore(fixture.id)}
+                      />
                       <div className="fixture-date">
                         <span className="fixture-date-full">{formatFixtureDate(fixture.date)} · {fixture.time}</span>
                         <span className="fixture-date-compact">{formatCompactFixtureDate(fixture.date)}</span>
