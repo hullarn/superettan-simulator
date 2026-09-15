@@ -886,7 +886,7 @@ button, input, select { font: inherit; }
     text-align: center;
   }
   .table-panel .table-note { display: none; }
-  .matches-panel { min-height: 0; padding-top: 0; padding-right: 7px; padding-bottom: 34px; }
+  .matches-panel { min-height: 0; padding-top: 0; padding-right: 7px; padding-bottom: 20px; }
   .matches-panel .matches-scroll { --matches-bottom-fade-height: 44px; max-height: none; }
   .matches-panel .panel-header {
     min-height: 38px;
