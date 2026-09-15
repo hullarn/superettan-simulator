@@ -944,7 +944,7 @@ button, input, select { font: inherit; }
   .mobile-panel-tab:focus-visible { outline: 2px solid #202129; outline-offset: -4px; }
   .fixture-row {
     min-height: 45px;
-    grid-template-columns: 23px minmax(0, 1fr) 82px 22px;
+    grid-template-columns: 27px minmax(0, 1fr) 82px 22px;
     grid-template-rows: minmax(27px, auto);
     align-content: start;
     align-items: center;
@@ -1013,7 +1013,7 @@ button, input, select { font: inherit; }
     text-overflow: clip;
     white-space: nowrap;
   }
-  .outcome-buttons { position: relative; z-index: 1; grid-column: 3; grid-row: 1; transform: none; }
+  .outcome-buttons { position: relative; z-index: 1; grid-column: 3; grid-row: 1; gap: 2px; transform: none; }
   .score-inputs { position: relative; z-index: 1; display: none; grid-column: 3; grid-row: 2; transform: none; }
   .fixture-row.is-score-expanded .score-inputs { display: flex; }
   .fixture-score-toggle {
