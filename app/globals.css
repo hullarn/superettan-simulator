@@ -1013,13 +1013,13 @@ button, input, select { font: inherit; }
     text-overflow: clip;
     white-space: nowrap;
   }
-  .outcome-buttons { position: relative; z-index: 2; grid-column: 3; grid-row: 1; transform: none; }
-  .score-inputs { position: relative; z-index: 2; display: none; grid-column: 3; grid-row: 2; transform: none; }
+  .outcome-buttons { position: relative; z-index: 1; grid-column: 3; grid-row: 1; transform: none; }
+  .score-inputs { position: relative; z-index: 1; display: none; grid-column: 3; grid-row: 2; transform: none; }
   .fixture-row.is-score-expanded .score-inputs { display: flex; }
   .fixture-score-toggle {
     position: relative;
     display: flex;
-    z-index: 2;
+    z-index: 1;
     width: 16px;
     height: 27px;
     grid-column: 4;
