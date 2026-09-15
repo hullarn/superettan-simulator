@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronDown, RotateCcw } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,11 @@ const updatedDay = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'sh
 function formatFixtureDate(date: string) {
   const formatted = weekday.format(new Date(`${date}T12:00:00`)).replaceAll('.', '');
   return formatted.charAt(0).toLocaleUpperCase('sv-SE') + formatted.slice(1);
+}
+
+function formatCompactFixtureDate(date: string) {
+  const [, month, day] = date.split('-').map(Number);
+  return `${day}/${month}`;
 }
 
 function outcome(result?: MatchResult) {
@@ -127,6 +132,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const [analysisStatus, setAnalysisStatus] = useState<'calculating' | 'ready' | 'error'>('calculating');
   const [hasMoreMatchesBelow, setHasMoreMatchesBelow] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('matches');
+  const [expandedScoreFixtures, setExpandedScoreFixtures] = useState<Set<string>>(() => new Set());
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchesScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -154,6 +160,7 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   }), [approximateTable, exactRanges]);
   const rounds = [...new Set(visibleFixtures.map((fixture) => fixture.round))];
   const chosenCount = upcomingFixtures.filter((fixture) => results[fixture.id]).length;
+  const allVisibleScoresExpanded = visibleFixtures.length > 0 && visibleFixtures.every((fixture) => expandedScoreFixtures.has(fixture.id));
   const isFinalTable = upcomingFixtures.every((fixture) => Boolean(results[fixture.id]));
   const selectedFocusTeam = focusTeams.size === 1 ? [...focusTeams][0] : null;
   const focusLabel = focusTeams.size === 0
@@ -218,6 +225,27 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
   const resetSimulation = () => {
     markAnalysisPending();
     setResults({});
+  };
+
+  const toggleFixtureScore = (fixtureId: string) => {
+    setExpandedScoreFixtures((current) => {
+      const next = new Set(current);
+      if (next.has(fixtureId)) next.delete(fixtureId);
+      else next.add(fixtureId);
+      return next;
+    });
+  };
+
+  const toggleAllVisibleScores = () => {
+    setExpandedScoreFixtures((current) => {
+      const next = new Set(current);
+      const shouldCollapse = visibleFixtures.length > 0 && visibleFixtures.every((fixture) => current.has(fixture.id));
+      visibleFixtures.forEach((fixture) => {
+        if (shouldCollapse) next.delete(fixture.id);
+        else next.add(fixture.id);
+      });
+      return next;
+    });
   };
 
   const toggleFocusTeam = (teamName: string, checked: boolean) => {
@@ -362,6 +390,9 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
             <Button variant="ghost" size="sm" className={cn('reset-button', chosenCount > 0 && 'is-visible')} onClick={resetSimulation} disabled={!Object.keys(results).length} aria-label={`Återställ ${chosenCount} valda matcher`}>
               Återställ <RotateCcw />
             </Button>
+            <Button variant="ghost" size="sm" className="score-visibility-button" onClick={toggleAllVisibleScores}>
+              {allVisibleScoresExpanded ? 'Dölj mål' : 'Visa mål'}
+            </Button>
           </div>
 
           <div ref={matchesScrollRef} className={cn('matches-scroll', hasMoreMatchesBelow && 'has-bottom-fade')}>
@@ -376,8 +407,12 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                 <div className="fixture-list">
                   {roundFixtures.map((fixture) => {
                     const result = results[fixture.id];
-                    return <article key={fixture.id} className="fixture-row">
-                      <div className="fixture-date">{formatFixtureDate(fixture.date)} · {fixture.time}</div>
+                    const scoreExpanded = expandedScoreFixtures.has(fixture.id);
+                    return <article key={fixture.id} className={cn('fixture-row', scoreExpanded && 'is-score-expanded')}>
+                      <div className="fixture-date">
+                        <span className="fixture-date-full">{formatFixtureDate(fixture.date)} · {fixture.time}</span>
+                        <span className="fixture-date-compact">{formatCompactFixtureDate(fixture.date)}</span>
+                      </div>
                       <div className="fixture-teams">
                         <span className="fixture-team-home"><ResponsiveTeamName name={fixture.home} /></span>
                         <span className="fixture-separator">–</span>
@@ -391,6 +426,15 @@ export function Simulator({ initialData }: { initialData: CompetitionData }) {
                         <span className="score-dash">–</span>
                         <input aria-label={`${displayTeamName(fixture.away)} mål`} type="number" min="0" max="30" inputMode="numeric" value={result?.away ?? ''} onChange={(event) => setExactScore(fixture, 'away', event.target.value)} className="score-input" />
                       </div>
+                      <button
+                        type="button"
+                        className="fixture-score-toggle"
+                        aria-expanded={scoreExpanded}
+                        aria-label={`${scoreExpanded ? 'Dölj' : 'Visa'} mål för ${displayTeamName(fixture.home)} mot ${displayTeamName(fixture.away)}`}
+                        onClick={() => toggleFixtureScore(fixture.id)}
+                      >
+                        <ChevronRight aria-hidden="true" />
+                      </button>
                     </article>;
                   })}
                 </div>
