@@ -11,7 +11,11 @@ import {
   ADMINISTRATIVE_RESULT_OVERRIDES,
   findAdministrativeResultOverride,
 } from '@/lib/administrative-result-overrides';
-import { applyScheduleOverrides, findScheduleOverride } from '@/lib/schedule-overrides';
+import { MANUAL_FIXTURE_FALLBACKS } from '@/lib/manual-fixture-fallbacks';
+import {
+  applyScheduleOverrides,
+  findScheduleOverride,
+} from '@/lib/schedule-overrides';
 
 const API_BASE_URL = 'https://api.goal-api.com/v1';
 const DEFAULT_LEAGUE_ID = 'cmr77dvit0057rx06s7xypict';
@@ -175,10 +179,28 @@ function applyFinishedResult(home: TeamStanding, away: TeamStanding, homeScore: 
   }
 }
 
-export function calculateStandingsFromFixtures(season: number, apiFixtures: GoalFixture[]) {
+export function calculateStandingsFromFixtures(
+  season: number,
+  apiFixtures: GoalFixture[],
+) {
   const deduplicated = deduplicateApiFixtures(apiFixtures);
-  const finishedFixtures = deduplicated.filter((fixture) =>
-    isFinishedFixture({ status: fixture.matchStatus } as Fixture),
+  const apiFixtureKeys = new Set(deduplicated.map(apiFixtureKey));
+  const fallbackFixtures: GoalFixture[] = MANUAL_FIXTURE_FALLBACKS.filter(
+    (fallback) =>
+      fallback.season === season &&
+      !apiFixtureKeys.has(
+        fixtureKey(fallback.round, fallback.home, fallback.away),
+      ),
+  ).map((fallback) => ({
+    matchRound: fallback.round,
+    homeTeamName: fallback.home,
+    awayTeamName: fallback.away,
+    homeTeamScore: fallback.homeScore,
+    awayTeamScore: fallback.awayScore,
+    matchStatus: 'FINISHED',
+  }));
+  const finishedFixtures = [...deduplicated, ...fallbackFixtures].filter(
+    (fixture) => isFinishedFixture({ status: fixture.matchStatus } as Fixture),
   );
   const table = new Map(SNAPSHOT.teams.map((team) => [
     team.name,

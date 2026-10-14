@@ -10,6 +10,7 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
+    "test": "node --experimental-transform-types --test tests/*.test.mjs",
     "build:sites": "vinext build",
     "lint": "oxlint",
     "format": "oxfmt"
